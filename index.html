@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LELO F1S V3 — Direct BLE Lab</title>
+<style>
+  :root{
+    --bg:#0b0b12; --panel:#15151f; --panel2:#1d1d2a; --border:#2c2c3d;
+    --text:#ececf5; --muted:#8b8ba3;
+    --accent:#ff4d8d; --accent2:#6b5bff; --ok:#3ddc97; --warn:#ffb03a; --danger:#ff5470;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; padding:0; overscroll-behavior:none; }
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC","Noto Sans",sans-serif;
+    font-size:14px; line-height:1.5; padding:12px 12px 48px;
+    touch-action:manipulation;
+  }
+  .wrap{ max-width:760px; margin:0 auto; }
+  h1{ font-size:19px; margin:0 0 2px; }
+  .sub{ color:var(--muted); font-size:12px; margin:0 0 12px; }
+  section{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:13px; margin-bottom:12px; }
+  h2{ font-size:14px; margin:0 0 10px; letter-spacing:.3px; display:flex; align-items:center; gap:8px; }
+  h2 .badge{ margin-left:auto; }
+  label{ display:block; font-size:11px; color:var(--muted); margin-bottom:3px; }
+  input[type=text], input[type=number], select, textarea{
+    width:100%; background:#0f0f17; color:var(--text);
+    border:1px solid var(--border); border-radius:9px;
+    padding:8px 9px; font-size:13px; font-family:inherit; outline:none;
+  }
+  textarea{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; }
+  input:focus, select:focus, textarea:focus{ border-color:var(--accent2); }
+  button{
+    border:none; border-radius:10px; padding:10px 14px;
+    font-size:13px; font-weight:600; font-family:inherit;
+    color:#fff; cursor:pointer; transition:filter .12s, transform .05s;
+  }
+  button:active{ transform:scale(.97); }
+  button:disabled{ opacity:.32; cursor:not-allowed; }
+  .btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .btn-row > button{ flex:1 1 100px; }
+  .b-primary{ background:var(--accent2); }
+  .b-ok{ background:var(--ok); color:#08281c; }
+  .b-danger{ background:var(--danger); }
+  .b-warn{ background:var(--warn); color:#2a1a00; }
+  .b-ghost{ background:var(--panel2); border:1px solid var(--border); color:var(--text); }
+  .b-sm{ padding:6px 10px; font-size:12px; }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+  .row{ display:flex; gap:9px; align-items:flex-end; }
+  .row > *{ flex:1; min-width:0; }
+
+  .stat{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:8px 10px; overflow:hidden; }
+  .stat .k{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
+  .stat .v{ font-size:17px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stat .r{ font-size:10px; color:var(--muted); font-family:ui-monospace,Menlo,Consolas,monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stat.live{ border-color:var(--ok); }
+
+  .badge{ font-size:10px; padding:3px 8px; border-radius:999px; border:1px solid var(--border); background:var(--panel2); color:var(--muted); white-space:nowrap; }
+  .badge.on{ color:#08281c; background:var(--ok); border-color:transparent; }
+  .badge.busy{ color:#2a1a00; background:var(--warn); border-color:transparent; }
+  .badge.err{ color:#fff; background:var(--danger); border-color:transparent; }
+
+  .switch{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); margin:6px 0; }
+  .switch input{ width:17px; height:17px; accent-color:var(--accent); flex:none; }
+
+  input[type=range]{ width:100%; accent-color:var(--accent); height:30px; }
+  .slabel{ display:flex; justify-content:space-between; font-size:11px; color:var(--muted); }
+  .slabel b{ color:var(--text); font-size:14px; }
+
+  .note{ font-size:11px; color:var(--muted); margin-top:8px; }
+  .warnbox{ background:#2a1a00; border:1px solid var(--warn); color:#ffd9a0; border-radius:10px; padding:9px 11px; font-size:12px; margin-bottom:10px; }
+
+  #log{ background:#08080e; border:1px solid var(--border); border-radius:10px;
+        padding:9px; height:210px; overflow:auto; font-size:11px; line-height:1.45;
+        font-family:ui-monospace,Menlo,Consolas,monospace; white-space:pre-wrap; word-break:break-word; }
+  .gattsvc{ border:1px solid var(--border); border-radius:10px; padding:9px; margin-bottom:8px; background:var(--panel2); }
+  .gattsvc > .h{ font-size:12px; font-weight:700; font-family:ui-monospace,Menlo,Consolas,monospace; margin-bottom:6px; word-break:break-all; }
+  .gattch{ border-top:1px solid var(--border); padding:7px 0 0; margin-top:7px; }
+  .gattch .u{ font-size:11px; font-family:ui-monospace,Menlo,Consolas,monospace; word-break:break-all; }
+  .gattch .p{ font-size:10px; color:var(--muted); margin:2px 0 5px; }
+  .gattch .val{ font-size:11px; font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--ok); word-break:break-all; min-height:15px; }
+  .hide{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>LELO F1S V3 — Direct BLE Lab</h1>
+<p class="sub">Web Bluetooth · 直連控制 + 全感測器即時讀值 · Chrome / Android</p>
+
+<div class="warnbox" id="envWarn" style="display:none"></div>
+
+<!-- ============ 1. CONNECT ============ -->
+<section>
+  <h2>1 · 連線 <span class="badge" id="connBadge">Idle</span></h2>
+  <div class="grid2">
+    <div>
+      <label>掃描過濾</label>
+      <select id="scanMode">
+        <option value="name">裝置名稱前綴（建議先試）</option>
+        <option value="service">Service 0xFFF0</option>
+        <option value="all">全部裝置（acceptAllDevices）</option>
+      </select>
+    </div>
+    <div>
+      <label>名稱前綴</label>
+      <input type="text" id="namePrefix" value="F1">
+    </div>
+  </div>
+  <div style="margin-top:9px">
+    <label>額外 optionalServices（空白/逗號分隔，選填）</label>
+    <input type="text" id="extraSvc" placeholder="例如 0000fff4-0000-1000-8000-00805f9b34fb">
+  </div>
+  <div class="btn-row" style="margin-top:10px">
+    <button class="b-primary" id="btnConnect">Connect</button>
+    <button class="b-ghost" id="btnDisconnect" disabled>Disconnect</button>
+  </div>
+  <div class="switch"><input type="checkbox" id="optWriteResp" checked><span>寫入用 write-with-response（LELO 多半只支援這個）</span></div>
+  <div class="switch"><input type="checkbox" id="optAutoNotify" checked><span>連上後自動訂閱所有 notify 特徵</span></div>
+  <p class="note">正確順序：先關掉 LELO App → 按下面 Connect 開啟選擇器 → 再開玩具電源。連上後裝置會要求你<b>再按一次電源鍵</b>完成授權（Key state → 01）。</p>
+</section>
+
+<!-- ============ 2. AUTH ============ -->
+<section>
+  <h2>2 · 授權 / Key state <span class="badge" id="keyBadge">—</span></h2>
+  <div class="grid3">
+    <div class="stat"><div class="k">Key state 0x0A0F</div><div class="v" id="vKey">—</div><div class="r" id="rKey"></div></div>
+    <div class="stat"><div class="k">Whitelist 0x0A11</div><div class="v" id="vWl" style="font-size:12px">—</div><div class="r" id="rWl"></div></div>
+    <div class="stat"><div class="k">MAC 0x0A06</div><div class="v" id="vMac" style="font-size:12px">—</div><div class="r" id="rMac"></div></div>
+  </div>
+  <div class="btn-row" style="margin-top:9px">
+    <button class="b-ghost b-sm" id="btnReadAuth" disabled>Read 三個值</button>
+    <button class="b-warn b-sm" id="btnAuthMac" disabled>Whitelist ← MAC</button>
+    <button class="b-ghost b-sm" id="btnAuthZero" disabled>Whitelist ← 8×00</button>
+  </div>
+  <p class="note">Harmony 系韌體（F.REV.M 之後）在 <code>0x0A11</code> 有一段 password handshake。上面兩顆是最常見的兩種猜測寫法，實測哪個能讓馬達開始吃指令就用哪個；都不行就到第 6 節用 raw hex 試。</p>
+</section>
+
+<!-- ============ 3. CONTROL ============ -->
+<section>
+  <h2>3 · 馬達控制</h2>
+  <div>
+    <div class="slabel"><span>主馬達 / Main motor</span><b><span id="lblMain">0</span>%</b></div>
+    <input type="range" id="sMain" min="0" max="100" value="0">
+  </div>
+  <div style="margin-top:4px">
+    <div class="slabel"><span>震動馬達 / Vibrator</span><b><span id="lblVib">0</span>%</b></div>
+    <input type="range" id="sVib" min="0" max="100" value="0">
+  </div>
+  <div class="switch"><input type="checkbox" id="optLink"><span>兩顆連動（拉一條另一條跟著走）</span></div>
+
+  <div class="btn-row" style="margin-top:6px">
+    <button class="b-ghost b-sm" data-preset="0">0%</button>
+    <button class="b-ghost b-sm" data-preset="30">30%</button>
+    <button class="b-ghost b-sm" data-preset="50">50%</button>
+    <button class="b-ghost b-sm" data-preset="70">70%</button>
+    <button class="b-ghost b-sm" data-preset="100">100%</button>
+  </div>
+  <div class="btn-row" style="margin-top:8px">
+    <button class="b-ok" id="btnPulse" disabled>Test 50% × 2s</button>
+    <button class="b-danger" id="btnStop" disabled>STOP (01 FF)</button>
+  </div>
+  <div class="btn-row" style="margin-top:8px">
+    <button class="b-ghost b-sm" id="btnShutdown" disabled>Shutdown (01 FA)</button>
+    <button class="b-ghost b-sm" id="btnCalib" disabled>Calibrate accel (FF FF FF)</button>
+  </div>
+
+  <div style="margin-top:11px">
+    <label>指令 frame 格式（<code>{m}</code>=主馬達, <code>{v}</code>=震動, 0–100）</label>
+    <select id="frameSel">
+      <option value="01 {m} {v}">01 {m} {v} — LELO F1s SDK 官方 3 bytes（預設）</option>
+      <option value="{m} {v}">{m} {v} — 2 bytes</option>
+      <option value="01 {m} {v} 00">01 {m} {v} 00 — 4 bytes 補零</option>
+      <option value="01 00 {m} {v}">01 00 {m} {v}</option>
+      <option value="{m} {v} 00 00">{m} {v} 00 00</option>
+      <option value="__custom__">自訂…</option>
+    </select>
+    <input type="text" id="frameCustom" class="hide" style="margin-top:7px" placeholder="例如 0A 01 {m} {v}">
+  </div>
+  <div style="margin-top:9px">
+    <label>指令寫入的特徵（預設 0xFFF1；可在第 5 節用 Set as CMD 改）</label>
+    <input type="text" id="cmdCharLbl" value="0000fff1-0000-1000-8000-00805f9b34fb" readonly>
+  </div>
+  <div class="switch"><input type="checkbox" id="optKeepalive"><span>每 1 秒重送目前強度（keepalive）</span></div>
+  <p class="note">SDK 註明：低於 30% 馬達可能轉不動；只要送出速度值，玩具上的實體按鍵會被鎖住，送 <code>01 FF</code> 才解鎖。</p>
+</section>
+
+<!-- ============ 4. SENSORS ============ -->
+<section>
+  <h2>4 · 感測器即時數值 <span class="badge" id="sensBadge">—</span></h2>
+  <div class="grid3">
+    <div class="stat" id="cHall"><div class="k">Hall / RPS</div><div class="v" id="vHall">—</div><div class="r" id="rHall"></div></div>
+    <div class="stat" id="cDepth"><div class="k">Depth 0–8</div><div class="v" id="vDepth">—</div><div class="r" id="rDepth"></div></div>
+    <div class="stat" id="cBtn"><div class="k">Buttons</div><div class="v" id="vBtn">—</div><div class="r" id="rBtn"></div></div>
+  </div>
+  <div class="grid3" style="margin-top:9px">
+    <div class="stat" id="cAx"><div class="k">Accel X</div><div class="v" id="vAx">—</div></div>
+    <div class="stat" id="cAy"><div class="k">Accel Y</div><div class="v" id="vAy">—</div></div>
+    <div class="stat" id="cAz"><div class="k">Accel Z</div><div class="v" id="vAz">—</div></div>
+  </div>
+  <div class="grid3" style="margin-top:9px">
+    <div class="stat" id="cPress"><div class="k">Pressure mbar</div><div class="v" id="vPress">—</div><div class="r" id="rPress"></div></div>
+    <div class="stat" id="cTemp"><div class="k">Temp °C</div><div class="v" id="vTemp">—</div><div class="r" id="rTemp"></div></div>
+    <div class="stat" id="cBatt"><div class="k">Battery</div><div class="v" id="vBatt">—</div><div class="r" id="rBatt"></div></div>
+  </div>
+  <div class="grid2" style="margin-top:9px">
+    <div class="stat"><div class="k">Motor readback 0xFFF1</div><div class="v" id="vMotor" style="font-size:14px">—</div><div class="r" id="rMotor"></div></div>
+    <div class="stat"><div class="k">Use log 0x0A04</div><div class="v" id="vUse" style="font-size:14px">—</div><div class="r" id="rUse"></div></div>
+  </div>
+
+  <div class="row" style="margin-top:11px">
+    <div>
+      <label>多位元組解碼順序</label>
+      <select id="endianSel">
+        <option value="be">Big-endian（SDK 文件寫法）</option>
+        <option value="le">Little-endian</option>
+      </select>
+    </div>
+    <div>
+      <label>輪詢週期 ms（0 = 只靠 notify）</label>
+      <input type="number" id="pollMs" value="0" min="0" step="100">
+    </div>
+  </div>
+  <div class="btn-row" style="margin-top:9px">
+    <button class="b-ghost b-sm" id="btnReadAll" disabled>Read all once</button>
+    <button class="b-ghost b-sm" id="btnRenotify" disabled>重新訂閱 notify</button>
+  </div>
+
+  <div style="margin-top:11px">
+    <label>Cruise control 0x0AA5</label>
+    <div class="btn-row">
+      <button class="b-ghost b-sm" data-cruise="0" disabled>Off (00)</button>
+      <button class="b-ghost b-sm" data-cruise="1" disabled>On (01)</button>
+      <button class="b-ghost b-sm" data-cruise="2" disabled>On+Reset (02)</button>
+    </div>
+  </div>
+  <div class="row" style="margin-top:9px">
+    <div>
+      <label>Vibrator setting 0x0A0D：8 個深度槽全設為</label>
+      <input type="number" id="vibSet" value="60" min="0" max="100">
+    </div>
+    <div style="flex:0 0 110px">
+      <button class="b-ghost b-sm" id="btnVibSet" style="width:100%" disabled>Write 8B</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. GATT EXPLORER ============ -->
+<section>
+  <h2>5 · GATT explorer <span class="badge" id="gattBadge">—</span></h2>
+  <div class="btn-row">
+    <button class="b-ghost b-sm" id="btnGatt" disabled>掃描 / 重新整理</button>
+    <button class="b-ghost b-sm" id="btnGattReadAll" disabled>Read 所有可讀特徵</button>
+  </div>
+  <div id="gattList" style="margin-top:10px"></div>
+</section>
+
+<!-- ============ 6. RAW CONSOLE ============ -->
+<section>
+  <h2>6 · Raw hex console</h2>
+  <div>
+    <label>目標特徵 UUID</label>
+    <input type="text" id="rawUuid" value="0000fff1-0000-1000-8000-00805f9b34fb">
+  </div>
+  <div style="margin-top:8px">
+    <label>Hex bytes（空白分隔）</label>
+    <input type="text" id="rawHex" value="01 32 32">
+  </div>
+  <div class="btn-row" style="margin-top:9px">
+    <button class="b-primary b-sm" id="btnRawWrite" disabled>Write</button>
+    <button class="b-ghost b-sm" id="btnRawRead" disabled>Read</button>
+    <button class="b-ghost b-sm" id="btnRawNotify" disabled>Notify on</button>
+  </div>
+  <div class="stat" style="margin-top:9px"><div class="k">Result</div><div class="r" id="rawOut" style="font-size:12px">—</div></div>
+</section>
+
+<!-- ============ LOG ============ -->
+<section>
+  <h2>Log <button class="b-ghost b-sm" id="btnCopyLog" style="margin-left:auto;flex:none">Copy</button></h2>
+  <div id="log"></div>
+</section>
+
+</div>
+
+<script>
+"use strict";
+
+/* ==================================================================
+   LELO F1S V3 — Direct Web Bluetooth lab page
+   Protocol reference: LELO-Devs/F1S-SDK BLE-Specs.md (CC BY-ND 4.0)
+   Harmony-firmware caveat: buttplug.io issue #679 / discuss thread 921
+   ================================================================== */
+
+function $(id){ return document.getElementById(id); }
+function pad2(n){ return (n<16?'0':'') + n.toString(16); }
+function hex(dv){
+  var a=[], i, b = (dv instanceof DataView) ? dv : new DataView(dv.buffer||dv);
+  for (i=0;i<b.byteLength;i++) a.push(pad2(b.getUint8(i)).toUpperCase());
+  return a.join(' ');
+}
+function u16uuid(code){
+  return '0000' + ('000'+code.toString(16)).slice(-4) + '-0000-1000-8000-00805f9b34fb';
+}
+function shortOf(uuid){
+  // '0000fff1-0000-1000-8000-00805f9b34fb' -> 0xfff1 ; returns null if not standard-base
+  var s = String(uuid).toLowerCase();
+  if (s.length !== 36) return null;
+  if (s.slice(8) !== '-0000-1000-8000-00805f9b34fb') return null;
+  if (s.slice(0,4) !== '0000') return null;
+  return parseInt(s.slice(4,8), 16);
+}
+function delay(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+/* ---------- logging ---------- */
+var logEl = $('log');
+function log(msg){
+  var t = new Date();
+  var ts = ('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2)+':'+('0'+t.getSeconds()).slice(-2)
+         + '.' + ('00'+t.getMilliseconds()).slice(-3);
+  logEl.textContent += ts + '  ' + msg + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+$('btnCopyLog').addEventListener('click', function(){
+  var ta = document.createElement('textarea');
+  ta.value = logEl.textContent; document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); log('(log copied)'); } catch(e){ log('copy failed: '+e.message); }
+  document.body.removeChild(ta);
+});
+
+/* ---------- UUID tables (LELO F1S SDK) ---------- */
+var SVC_LELO   = u16uuid(0xfff0);
+var SVC_DEVINFO= u16uuid(0x180a);
+var SVC_BATT   = u16uuid(0x180f);
+
+var CH = {
+  motor:     0xfff1,   // R/W  3B  01 yy zz
+  harmonyTx: 0xfff2,   // harmony notify endpoint
+  cruise:    0x0aa5,   // R/W  1B
+  vibSet:    0x0a0d,   // R/W  8B
+  keyState:  0x0a0f,   // R/N  1B
+  wakeUp:    0x0aa1,   // R/W  1B
+  hall:      0x0aa3,   // R/N  2B  rotations per second
+  depth:     0x0a0b,   // R/N  2B  0..8
+  accel:     0x0a0c,   // R/N  6B  x,y,z int16
+  pressTemp: 0x0a0a,   // R/N  8B
+  buttons:   0x0aa4,   // R/N  1B
+  useLog:    0x0a04,   // R/W  2B
+  whitelist: 0x0a11,   // harmony password handshake
+  mac:       0x0a06,   // ascii MAC (device info service)
+  serial:    0x0a05,
+  battery:   0x2a19
+};
+
+function baseOptionalServices(){
+  var list = [SVC_LELO, SVC_DEVINFO, SVC_BATT];
+  // Some firmwares expose the custom chars under sibling vendor services; harmless to request.
+  [0xfff1,0xfff2,0xfff3,0xfff4,0xffe0,0x0a00,0x0aa0].forEach(function(c){ list.push(u16uuid(c)); });
+  list.push('6e400001-b5a3-f393-e0a9-e50e24dcca9e'); // NUS, just in case
+  var extra = ($('extraSvc').value || '').split(/[\s,;]+/).filter(function(x){ return /^[0-9a-fA-F-]{4,}$/.test(x); });
+  extra.forEach(function(x){
+    var v = x.toLowerCase();
+    if (/^[0-9a-f]{4}$/.test(v)) v = u16uuid(parseInt(v,16));
+    list.push(v);
+  });
+  // never request blocklisted services — requestDevice() throws SecurityError before the chooser opens
+  return list.filter(function(u){
+    return ['00001800','00001801'].every(function(b){ return u.indexOf(b) !== 0; });
+  });
+}
+
+/* ---------- state ---------- */
+var S = {
+  device: null, server: null,
+  services: [],            // [{uuid, chars:[BluetoothRemoteGATTCharacteristic]}]
+  byShort: {},             // 0xfff1 -> characteristic
+  byUuid: {},              // full uuid -> characteristic
+  cmdChar: null,
+  mutex: Promise.resolve(),
+  connected: false,
+  keyOk: false,
+  main: 0, vib: 0,
+  keepaliveTimer: null,
+  pollTimer: null,
+  notifying: {}
+};
+
+/* Serialise every GATT operation — concurrent writes throw
+   "GATT operation already in progress" on Android. */
+function q(fn){
+  var run = S.mutex.then(fn, fn);
+  S.mutex = run.catch(function(){});
+  return run;
+}
+function withTimeout(p, ms, label){
+  return new Promise(function(res, rej){
+    var to = setTimeout(function(){ rej(new Error(label + ' timed out after ' + ms + 'ms')); }, ms);
+    p.then(function(v){ clearTimeout(to); res(v); }, function(e){ clearTimeout(to); rej(e); });
+  });
+}
+
+function setBadge(el, text, cls){
+  el.textContent = text;
+  el.className = 'badge' + (cls ? ' ' + cls : '');
+}
+function setControlsEnabled(on){
+  ['btnDisconnect','btnReadAuth','btnAuthMac','btnAuthZero','btnPulse','btnStop','btnShutdown',
+   'btnCalib','btnReadAll','btnRenotify','btnGatt','btnGattReadAll','btnRawWrite','btnRawRead',
+   'btnRawNotify','btnVibSet'].forEach(function(id){ $(id).disabled = !on; });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-cruise]'), function(b){ b.disabled = !on; });
+}
+
+/* ---------- environment check ---------- */
+(function(){
+  var msgs = [];
+  if (!navigator.bluetooth) msgs.push('這個瀏覽器沒有 Web Bluetooth。Android 請用 Chrome；iOS 需要 Bluefy 之類的第三方瀏覽器。');
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost')
+    msgs.push('目前不是 HTTPS。Web Bluetooth 只在 https:// 或 localhost 下可用（GitHub Pages 沒問題，file:// 不行）。');
+  if (msgs.length){ $('envWarn').style.display='block'; $('envWarn').innerHTML = msgs.join('<br>'); }
+})();
+
+/* ==================================================================
+   CONNECT
+   ================================================================== */
+$('btnConnect').addEventListener('click', function(){
+  connect().catch(function(e){
+    setBadge($('connBadge'), 'Failed', 'err');
+    log('CONNECT FAILED: ' + (e && e.message ? e.message : e));
+  });
+});
+$('btnDisconnect').addEventListener('click', function(){
+  if (S.device && S.device.gatt && S.device.gatt.connected) S.device.gatt.disconnect();
+  onDrop();
+});
+
+function connect(){
+  var t0 = Date.now();
+  var mode = $('scanMode').value;
+  var opts;
+  var optional = baseOptionalServices();
+
+  if (mode === 'service')      opts = { filters:[{ services:[SVC_LELO] }], optionalServices: optional };
+  else if (mode === 'name')    opts = { filters:[{ namePrefix: ($('namePrefix').value || 'F1') }], optionalServices: optional };
+  else                         opts = { acceptAllDevices: true, optionalServices: optional };
+
+  setBadge($('connBadge'), 'Scanning…', 'busy');
+  log('requestDevice mode=' + mode + '  optionalServices=' + optional.length);
+
+  return navigator.bluetooth.requestDevice(opts).then(function(dev){
+    S.device = dev;
+    log('picked: ' + (dev.name || '(no name)') + '  id=' + dev.id);
+    dev.addEventListener('gattserverdisconnected', onDrop);
+    setBadge($('connBadge'), 'Connecting…', 'busy');
+    return withTimeout(dev.gatt.connect(), 30000, 'gatt.connect');
+  }).then(function(server){
+    S.server = server;
+    log('gatt.connect ok  (+' + (Date.now()-t0) + 'ms)');
+    return discover();
+  }).then(function(){
+    S.connected = true;
+    setControlsEnabled(true);
+    setBadge($('connBadge'), 'Connected: ' + (S.device.name || '?'), 'on');
+    log('discovery done  (+' + (Date.now()-t0) + 'ms)');
+    log('>>> 現在按一次玩具的電源鍵完成授權（Key state 應變成 01）');
+    return readAuth();
+  }).then(function(){
+    if ($('optAutoNotify').checked) return startNotifications();
+  }).then(function(){
+    return readAllSensors();
+  }).then(function(){
+    renderGatt();
+    applyPolling();
+  });
+}
+
+function onDrop(){
+  if (!S.connected && !S.device) return;
+  S.connected = false; S.keyOk = false;
+  stopKeepalive();
+  if (S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer = null; }
+  S.services = []; S.byShort = {}; S.byUuid = {}; S.cmdChar = null; S.notifying = {};
+  setControlsEnabled(false);
+  setBadge($('connBadge'), 'Disconnected');
+  setBadge($('keyBadge'), '—');
+  setBadge($('sensBadge'), '—');
+  setBadge($('gattBadge'), '—');
+  $('gattList').innerHTML = '';
+  log('disconnected.');
+}
+
+function discover(){
+  return S.server.getPrimaryServices().then(function(svcs){
+    log('services found: ' + svcs.length);
+    var chain = Promise.resolve();
+    S.services = [];
+    svcs.forEach(function(svc){
+      chain = chain.then(function(){
+        return svc.getCharacteristics().then(function(chars){
+          S.services.push({ uuid: svc.uuid, chars: chars });
+          var names = [];
+          chars.forEach(function(c){
+            S.byUuid[c.uuid] = c;
+            var sh = shortOf(c.uuid);
+            if (sh !== null && S.byShort[sh] === undefined) S.byShort[sh] = c;
+            names.push((sh !== null ? '0x'+('000'+sh.toString(16)).slice(-4) : c.uuid) + '[' + props(c) + ']');
+          });
+          log('  ' + svc.uuid + '  →  ' + names.join(' '));
+        }, function(e){
+          log('  ' + svc.uuid + '  → getCharacteristics failed: ' + e.message);
+        });
+      });
+    });
+    return chain;
+  }).then(function(){
+    S.cmdChar = S.byShort[CH.motor] || null;
+    $('cmdCharLbl').value = S.cmdChar ? S.cmdChar.uuid : '(0xFFF1 not found — 用第 5 節 Set as CMD 指定)';
+    if (!S.cmdChar) log('WARNING: 0xFFF1 not found. 請在 GATT explorer 手動指定指令特徵。');
+    setBadge($('gattBadge'), S.services.length + ' services');
+  });
+}
+
+function props(c){
+  var p = c.properties || {}, out = [];
+  if (p.read) out.push('R');
+  if (p.write) out.push('W');
+  if (p.writeWithoutResponse) out.push('w');
+  if (p.notify) out.push('N');
+  if (p.indicate) out.push('I');
+  return out.join('');
+}
+
+/* ==================================================================
+   LOW LEVEL R/W
+   ================================================================== */
+function chFor(code){ return S.byShort[code] || null; }
+
+function writeCh(c, bytes){
+  var buf = new Uint8Array(bytes);
+  var wantResp = $('optWriteResp').checked;
+  return q(function(){
+    if (!wantResp && c.properties && c.properties.writeWithoutResponse && c.writeValueWithoutResponse)
+      return c.writeValueWithoutResponse(buf).catch(function(){ return c.writeValue(buf); });
+    if (c.writeValueWithResponse) return c.writeValueWithResponse(buf).catch(function(){ return c.writeValue(buf); });
+    return c.writeValue(buf);
+  });
+}
+function readCh(c){ return q(function(){ return c.readValue(); }); }
+
+function writeCode(code, bytes, label){
+  var c = chFor(code);
+  if (!c) { log('write skipped — 0x' + code.toString(16) + ' not present'); return Promise.reject(new Error('char 0x'+code.toString(16)+' missing')); }
+  return writeCh(c, bytes).then(function(){
+    log((label || 'write') + ' → 0x' + code.toString(16) + ' : ' + bytes.map(function(b){ return pad2(b).toUpperCase(); }).join(' '));
+  }, function(e){
+    log((label || 'write') + ' FAILED on 0x' + code.toString(16) + ' : ' + e.message);
+    throw e;
+  });
+}
+
+/* ==================================================================
+   AUTH / KEY STATE
+   ================================================================== */
+function readAuth(){
+  var jobs = [];
+  var k = chFor(CH.keyState), w = chFor(CH.whitelist), m = chFor(CH.mac);
+
+  if (k && k.properties.read) jobs.push(readCh(k).then(function(v){ showKey(v); }, function(e){ $('vKey').textContent='read err'; log('key read: '+e.message); }));
+  else { $('vKey').textContent = k ? 'no read' : 'absent'; }
+
+  if (w && w.properties.read) jobs.push(readCh(w).then(function(v){
+    $('vWl').textContent = hex(v); $('rWl').textContent = w.uuid.slice(0,8);
+  }, function(e){ $('vWl').textContent='read err'; log('whitelist read: '+e.message); }));
+  else { $('vWl').textContent = w ? 'no read' : 'absent'; }
+
+  if (m && m.properties.read) jobs.push(readCh(m).then(function(v){
+    var s = new TextDecoder().decode(v);
+    $('vMac').textContent = s.replace(/[^\x20-\x7e]/g,'') || '(empty)';
+    $('rMac').textContent = hex(v);
+  }, function(e){ $('vMac').textContent='read err'; log('mac read: '+e.message); }));
+  else { $('vMac').textContent = m ? 'no read' : 'absent'; }
+
+  return Promise.all(jobs);
+}
+$('btnReadAuth').addEventListener('click', function(){ readAuth(); });
+
+function showKey(v){
+  var b = v.getUint8(0);
+  S.keyOk = (b === 1);
+  $('vKey').textContent = S.keyOk ? 'AUTHORISED (01)' : 'locked (' + pad2(b) + ')';
+  $('rKey').textContent = hex(v);
+  setBadge($('keyBadge'), S.keyOk ? 'Authorised' : '按電源鍵', S.keyOk ? 'on' : 'busy');
+  if (S.keyOk) log('Key state = 01 → 授權完成，指令現在應該會被接受。');
+}
+
+$('btnAuthMac').addEventListener('click', function(){
+  var m = chFor(CH.mac), w = chFor(CH.whitelist);
+  if (!m || !w) { log('MAC 或 whitelist 特徵不存在，改用第 6 節手動寫。'); return; }
+  readCh(m).then(function(v){
+    var bytes = [];
+    for (var i=0;i<v.byteLength;i++) bytes.push(v.getUint8(i));
+    return writeCh(w, bytes).then(function(){
+      log('whitelist ← MAC (' + bytes.length + ' bytes): ' + hex(v));
+      return readAuth();
+    });
+  }).catch(function(e){ log('authorise-with-MAC failed: ' + e.message); });
+});
+$('btnAuthZero').addEventListener('click', function(){
+  var w = chFor(CH.whitelist);
+  if (!w) { log('whitelist 特徵不存在。'); return; }
+  writeCh(w, [0,0,0,0,0,0,0,0]).then(function(){
+    log('whitelist ← 00×8'); return readAuth();
+  }).catch(function(e){ log('whitelist zero write failed: ' + e.message); });
+});
+
+/* ==================================================================
+   MOTOR CONTROL
+   ================================================================== */
+function frameTemplate(){
+  var v = $('frameSel').value;
+  return (v === '__custom__') ? ($('frameCustom').value || '01 {m} {v}') : v;
+}
+function buildFrame(m, v){
+  var tpl = frameTemplate();
+  var out = [];
+  tpl.trim().split(/\s+/).forEach(function(tok){
+    if (tok === '{m}') out.push(m & 0xff);
+    else if (tok === '{v}') out.push(v & 0xff);
+    else { var n = parseInt(tok, 16); if (!isNaN(n)) out.push(n & 0xff); }
+  });
+  return out;
+}
+function sendMotors(){
+  var c = S.cmdChar;
+  if (!c) { log('沒有指令特徵，無法送值。'); return Promise.resolve(); }
+  var bytes = buildFrame(S.main, S.vib);
+  return writeCh(c, bytes).then(function(){
+    log('motor → ' + bytes.map(function(b){ return pad2(b).toUpperCase(); }).join(' ') +
+        '  (main=' + S.main + '% vib=' + S.vib + '%)');
+  }, function(e){ log('motor write failed: ' + e.message); });
+}
+
+function setMain(v){ S.main = Math.max(0, Math.min(100, v|0)); $('sMain').value = S.main; $('lblMain').textContent = S.main; }
+function setVib(v){  S.vib  = Math.max(0, Math.min(100, v|0)); $('sVib').value  = S.vib;  $('lblVib').textContent  = S.vib; }
+
+$('sMain').addEventListener('input', function(){
+  setMain(+this.value);
+  if ($('optLink').checked) setVib(S.main);
+  if (S.connected) sendMotors();
+});
+$('sVib').addEventListener('input', function(){
+  setVib(+this.value);
+  if ($('optLink').checked) setMain(S.vib);
+  if (S.connected) sendMotors();
+});
+Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'), function(b){
+  b.addEventListener('click', function(){
+    var n = +b.getAttribute('data-preset');
+    setMain(n); setVib(n);
+    if (S.connected) sendMotors();
+  });
+});
+$('frameSel').addEventListener('change', function(){
+  $('frameCustom').classList.toggle('hide', this.value !== '__custom__');
+});
+
+$('btnPulse').addEventListener('click', function(){
+  var oldM = S.main, oldV = S.vib;
+  setMain(50); setVib(50);
+  sendMotors().then(function(){ return delay(2000); }).then(function(){
+    setMain(oldM); setVib(oldV);
+    return sendMotors();
+  });
+});
+$('btnStop').addEventListener('click', function(){
+  setMain(0); setVib(0);
+  stopKeepalive();
+  var c = S.cmdChar;
+  if (c) writeCh(c, [0x01, 0xFF]).then(function(){ log('STOP → 01 FF (實體按鍵解鎖)'); },
+                                       function(e){ log('stop failed: ' + e.message); });
+});
+$('btnShutdown').addEventListener('click', function(){
+  var c = S.cmdChar;
+  if (c) writeCh(c, [0x01, 0xFA]).then(function(){ log('SHUTDOWN → 01 FA'); },
+                                       function(e){ log('shutdown failed: ' + e.message); });
+});
+$('btnCalib').addEventListener('click', function(){
+  var c = S.cmdChar;
+  if (c) writeCh(c, [0xFF, 0xFF, 0xFF]).then(function(){
+    log('CALIBRATE → FF FF FF。裝置需直立、按鍵朝上；校正後 X/Y 應趨近 0，Z 趨近 1024。');
+  }, function(e){ log('calibrate failed: ' + e.message); });
+});
+
+/* keepalive */
+function startKeepalive(){
+  stopKeepalive();
+  S.keepaliveTimer = setInterval(function(){
+    if (S.connected && (S.main > 0 || S.vib > 0)) sendMotors();
+  }, 1000);
+}
+function stopKeepalive(){ if (S.keepaliveTimer){ clearInterval(S.keepaliveTimer); S.keepaliveTimer = null; } }
+$('optKeepalive').addEventListener('change', function(){ this.checked ? startKeepalive() : stopKeepalive(); });
+
+/* cruise control + vibrator setting */
+Array.prototype.forEach.call(document.querySelectorAll('[data-cruise]'), function(b){
+  b.addEventListener('click', function(){
+    writeCode(CH.cruise, [+b.getAttribute('data-cruise')], 'cruise').catch(function(){});
+  });
+});
+$('btnVibSet').addEventListener('click', function(){
+  var n = Math.max(0, Math.min(100, +$('vibSet').value || 0));
+  writeCode(CH.vibSet, [n,n,n,n,n,n,n,n], 'vibSetting').catch(function(){});
+});
+
+/* ==================================================================
+   SENSORS
+   ================================================================== */
+function isBE(){ return $('endianSel').value === 'be'; }
+function u16(v, off){ return v.getUint16(off, !isBE()); }
+function i16(v, off){ return v.getInt16(off, !isBE()); }
+function u32(v, off){ return v.getUint32(off, !isBE()); }
+
+var PARSERS = {};
+
+PARSERS[CH.hall] = function(v){
+  var n = v.byteLength >= 2 ? u16(v,0) : v.getUint8(0);
+  $('vHall').textContent = n + ' rps';
+  $('rHall').textContent = hex(v) + '  ≈ ' + (n*60) + ' rpm';
+  flash('cHall');
+};
+PARSERS[CH.depth] = function(v){
+  var n = v.byteLength >= 2 ? u16(v,0) : v.getUint8(0);
+  $('vDepth').textContent = n;
+  $('rDepth').textContent = hex(v);
+  flash('cDepth');
+};
+PARSERS[CH.accel] = function(v){
+  if (v.byteLength < 6) { $('vAx').textContent = hex(v); return; }
+  $('vAx').textContent = i16(v,0);
+  $('vAy').textContent = i16(v,2);
+  $('vAz').textContent = i16(v,4);
+  flash('cAx'); flash('cAy'); flash('cAz');
+};
+PARSERS[CH.pressTemp] = function(v){
+  var raw = hex(v);
+  if (v.byteLength < 8) { $('vPress').textContent = raw; return; }
+  // SDK: two 32-bit fixed-point values / 100. Field order is ambiguous in the doc,
+  // so show interpretation A (temp first) and note B in the raw line.
+  var a0 = u32(v,0)/100, a1 = u32(v,4)/100;
+  var temp, press, alt;
+  if (a0 > 300 || a1 < 300) { press = a0; temp = a1; alt = 'A: press=' + a0.toFixed(2) + ' temp=' + a1.toFixed(2); }
+  else                      { temp = a0; press = a1; alt = 'B: temp=' + a0.toFixed(2) + ' press=' + a1.toFixed(2); }
+  $('vPress').textContent = press.toFixed(2);
+  $('vTemp').textContent  = temp.toFixed(2);
+  $('rPress').textContent = raw;
+  $('rTemp').textContent  = alt;
+  flash('cPress'); flash('cTemp');
+};
+PARSERS[CH.buttons] = function(v){
+  var b = v.getUint8(0);
+  var names = { 0:'POWER ↓', 1:'PLUS +', 2:'MINUS −', 3:'released' };
+  $('vBtn').textContent = names[b] !== undefined ? names[b] : ('0x'+pad2(b));
+  $('rBtn').textContent = hex(v);
+  flash('cBtn');
+};
+PARSERS[CH.battery] = function(v){
+  $('vBatt').textContent = v.getUint8(0) + '%';
+  $('rBatt').textContent = hex(v);
+  flash('cBatt');
+};
+PARSERS[CH.keyState] = function(v){ showKey(v); };
+PARSERS[CH.motor] = function(v){
+  if (v.byteLength >= 3) $('vMotor').textContent = v.getUint8(1) + '% / ' + v.getUint8(2) + '%';
+  else $('vMotor').textContent = hex(v);
+  $('rMotor').textContent = hex(v);
+};
+PARSERS[CH.useLog] = function(v){
+  $('vUse').textContent = (v.byteLength >= 2 ? u16(v,0) : v.getUint8(0)) + ' 次';
+  $('rUse').textContent = hex(v);
+};
+
+var flashTimers = {};
+function flash(id){
+  var el = $(id); if (!el) return;
+  el.classList.add('live');
+  clearTimeout(flashTimers[id]);
+  flashTimers[id] = setTimeout(function(){ el.classList.remove('live'); }, 350);
+}
+
+var SENSOR_CODES = [CH.keyState, CH.hall, CH.depth, CH.accel, CH.pressTemp, CH.buttons, CH.battery, CH.motor, CH.useLog];
+
+function startNotifications(){
+  var chain = Promise.resolve(), n = 0;
+  SENSOR_CODES.forEach(function(code){
+    var c = chFor(code);
+    if (!c || !c.properties.notify) return;
+    chain = chain.then(function(){
+      return q(function(){ return c.startNotifications(); }).then(function(){
+        n++;
+        S.notifying[code] = true;
+        c.addEventListener('characteristicvaluechanged', function(e){
+          try { (PARSERS[code] || function(){})(e.target.value); }
+          catch(err){ log('parse error 0x'+code.toString(16)+': '+err.message); }
+        });
+        log('notify on 0x' + code.toString(16));
+      }, function(e){ log('notify FAILED 0x' + code.toString(16) + ': ' + e.message); });
+    });
+  });
+  return chain.then(function(){
+    setBadge($('sensBadge'), n + ' notify', n ? 'on' : '');
+  });
+}
+$('btnRenotify').addEventListener('click', function(){ startNotifications(); });
+
+function readAllSensors(){
+  var chain = Promise.resolve();
+  SENSOR_CODES.forEach(function(code){
+    var c = chFor(code);
+    if (!c || !c.properties.read) return;
+    chain = chain.then(function(){
+      return readCh(c).then(function(v){
+        try { (PARSERS[code] || function(){})(v); } catch(err){}
+      }, function(){});
+    });
+  });
+  return chain;
+}
+$('btnReadAll').addEventListener('click', function(){ readAllSensors(); });
+
+function applyPolling(){
+  if (S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer = null; }
+  var ms = +$('pollMs').value || 0;
+  if (ms >= 100 && S.connected){
+    S.pollTimer = setInterval(function(){ if (S.connected) readAllSensors(); }, ms);
+    log('polling every ' + ms + 'ms');
+  }
+}
+$('pollMs').addEventListener('change', applyPolling);
+$('endianSel').addEventListener('change', function(){ if (S.connected) readAllSensors(); });
+
+/* ==================================================================
+   GATT EXPLORER
+   ================================================================== */
+$('btnGatt').addEventListener('click', function(){ discover().then(renderGatt); });
+
+function renderGatt(){
+  var host = $('gattList');
+  host.innerHTML = '';
+  S.services.forEach(function(svc){
+    var box = document.createElement('div');
+    box.className = 'gattsvc';
+    var sh = shortOf(svc.uuid);
+    var head = document.createElement('div');
+    head.className = 'h';
+    head.textContent = (sh !== null ? '0x' + ('000'+sh.toString(16)).slice(-4) + '  ' : '') + svc.uuid;
+    box.appendChild(head);
+
+    svc.chars.forEach(function(c){
+      var csh = shortOf(c.uuid);
+      var row = document.createElement('div');
+      row.className = 'gattch';
+
+      var u = document.createElement('div');
+      u.className = 'u';
+      u.textContent = (csh !== null ? '0x' + ('000'+csh.toString(16)).slice(-4) + '  ' : '') + c.uuid;
+      row.appendChild(u);
+
+      var p = document.createElement('div');
+      p.className = 'p';
+      p.textContent = 'props: ' + (props(c) || 'none');
+      row.appendChild(p);
+
+      var val = document.createElement('div');
+      val.className = 'val';
+      row.appendChild(val);
+
+      var bar = document.createElement('div');
+      bar.className = 'btn-row';
+      bar.style.marginTop = '6px';
+
+      if (c.properties.read){
+        bar.appendChild(mkBtn('Read', function(){
+          readCh(c).then(function(v){
+            var asc = '';
+            try { asc = new TextDecoder().decode(v).replace(/[^\x20-\x7e]/g,'·'); } catch(e){}
+            val.textContent = hex(v) + (asc ? '   "' + asc + '"' : '');
+            log('read ' + c.uuid.slice(0,8) + ' = ' + hex(v));
+          }, function(e){ val.textContent = 'ERR ' + e.message; });
+        }));
+      }
+      if (c.properties.notify){
+        bar.appendChild(mkBtn('Notify', function(){
+          q(function(){ return c.startNotifications(); }).then(function(){
+            c.addEventListener('characteristicvaluechanged', function(e){ val.textContent = hex(e.target.value); });
+            log('notify on ' + c.uuid.slice(0,8));
+          }, function(e){ val.textContent = 'ERR ' + e.message; });
+        }));
+      }
+      if (c.properties.write || c.properties.writeWithoutResponse){
+        bar.appendChild(mkBtn('Set as CMD', function(){
+          S.cmdChar = c;
+          $('cmdCharLbl').value = c.uuid;
+          log('command characteristic → ' + c.uuid);
+        }));
+        bar.appendChild(mkBtn('→ raw', function(){
+          $('rawUuid').value = c.uuid;
+          $('rawUuid').scrollIntoView({ behavior:'smooth', block:'center' });
+        }));
+      }
+      row.appendChild(bar);
+      box.appendChild(row);
+    });
+    host.appendChild(box);
+  });
+}
+function mkBtn(label, fn){
+  var b = document.createElement('button');
+  b.className = 'b-ghost b-sm';
+  b.style.flex = '0 0 auto';
+  b.textContent = label;
+  b.addEventListener('click', fn);
+  return b;
+}
+$('btnGattReadAll').addEventListener('click', function(){
+  var chain = Promise.resolve();
+  S.services.forEach(function(svc){
+    svc.chars.forEach(function(c){
+      if (!c.properties.read) return;
+      chain = chain.then(function(){
+        return readCh(c).then(function(v){
+          log('  ' + c.uuid + ' = ' + hex(v));
+        }, function(e){ log('  ' + c.uuid + ' read err: ' + e.message); });
+      });
+    });
+  });
+  chain.then(function(){ log('read-all done.'); });
+});
+
+/* ==================================================================
+   RAW CONSOLE
+   ================================================================== */
+function rawChar(){
+  var u = ($('rawUuid').value || '').trim().toLowerCase();
+  if (/^(0x)?[0-9a-f]{4}$/.test(u)) u = u16uuid(parseInt(u.replace('0x',''), 16));
+  return S.byUuid[u] || null;
+}
+function parseHex(s){
+  return (s || '').trim().split(/[\s,]+/).map(function(t){ return parseInt(t, 16) & 0xff; })
+         .filter(function(n){ return !isNaN(n); });
+}
+$('btnRawWrite').addEventListener('click', function(){
+  var c = rawChar();
+  if (!c) { $('rawOut').textContent = '找不到該 UUID（要先連線並掃過 GATT）'; return; }
+  var b = parseHex($('rawHex').value);
+  writeCh(c, b).then(function(){
+    $('rawOut').textContent = 'wrote ' + b.length + ' bytes OK';
+    log('raw write ' + c.uuid.slice(0,8) + ' ← ' + b.map(function(x){ return pad2(x).toUpperCase(); }).join(' '));
+  }, function(e){ $('rawOut').textContent = 'ERR ' + e.message; log('raw write err: ' + e.message); });
+});
+$('btnRawRead').addEventListener('click', function(){
+  var c = rawChar();
+  if (!c) { $('rawOut').textContent = '找不到該 UUID'; return; }
+  readCh(c).then(function(v){
+    var asc = ''; try { asc = new TextDecoder().decode(v).replace(/[^\x20-\x7e]/g,'·'); } catch(e){}
+    $('rawOut').textContent = hex(v) + (asc ? '   "' + asc + '"' : '');
+    log('raw read ' + c.uuid.slice(0,8) + ' = ' + hex(v));
+  }, function(e){ $('rawOut').textContent = 'ERR ' + e.message; });
+});
+$('btnRawNotify').addEventListener('click', function(){
+  var c = rawChar();
+  if (!c) { $('rawOut').textContent = '找不到該 UUID'; return; }
+  q(function(){ return c.startNotifications(); }).then(function(){
+    c.addEventListener('characteristicvaluechanged', function(e){ $('rawOut').textContent = hex(e.target.value); });
+    log('raw notify on ' + c.uuid.slice(0,8));
+  }, function(e){ $('rawOut').textContent = 'ERR ' + e.message; });
+});
+
+log('ready. LELO F1S V3 direct-BLE lab loaded.');
+log('提示：新韌體 (F.REV.M+) 的 V3 走 Harmony 協定，官方 SDK 的 01 {m} {v} 可能寫入成功但沒反應 —');
+log('      那就到第 3 節換 frame 格式、或先在第 2 節做 whitelist handshake，再用第 6 節試 raw bytes。');
+</script>
+</body>
+</html>
