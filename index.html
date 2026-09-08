@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>LELO F1S V3 — Direct BLE Lab v2</title>
+<title>LELO F1S V3 — Direct BLE Lab v3</title>
 <style>
   :root{
     --bg:#0b0b12; --panel:#15151f; --panel2:#1d1d2a; --border:#2c2c3d;
@@ -46,6 +46,7 @@
   .b-ghost{ background:var(--panel2); border:1px solid var(--border); color:var(--text); }
   .b-sm{ padding:6px 10px; font-size:12px; }
   .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
   .row{ display:flex; gap:9px; align-items:flex-end; }
   .row > *{ flex:1; min-width:0; }
   .badge{ font-size:10px; padding:3px 8px; border-radius:999px; border:1px solid var(--border); background:var(--panel2); color:var(--muted); white-space:nowrap; }
@@ -59,8 +60,15 @@
   .slabel b{ color:var(--text); font-size:14px; }
   .note{ font-size:11px; color:var(--muted); margin-top:8px; }
   .warnbox{ background:#2a1a00; border:1px solid var(--warn); color:#ffd9a0; border-radius:10px; padding:9px 11px; font-size:12px; margin-bottom:10px; }
+  .dangerbox{ background:#2a0d14; border:1px solid var(--danger); color:#ffc4ce; border-radius:10px; padding:9px 11px; font-size:12px; margin:9px 0; }
   .hint{ background:#101a2a; border:1px solid var(--accent2); color:#c9d4ff; border-radius:10px; padding:9px 11px; font-size:12px; margin:9px 0; }
-  .mono{ font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .stat{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:8px 10px; overflow:hidden; }
+  .stat .k{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; white-space:nowrap;
+            overflow:hidden; text-overflow:ellipsis; }
+  .stat .v{ font-size:17px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stat .r{ font-size:10px; color:var(--muted); font-family:ui-monospace,Menlo,Consolas,monospace;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stat.live{ border-color:var(--ok); }
   #log{ background:#08080e; border:1px solid var(--border); border-radius:10px;
         padding:9px; height:230px; overflow:auto; font-size:11px; line-height:1.45;
         font-family:ui-monospace,Menlo,Consolas,monospace; white-space:pre-wrap; word-break:break-word; }
@@ -72,22 +80,27 @@
   tr.hot td{ background:#0f2a20; }
   td.val{ color:var(--ok); }
   td.n{ color:var(--muted); text-align:right; white-space:nowrap; }
-  select.mini{ padding:3px 5px; font-size:11px; border-radius:6px; }
+  td.lock{ color:var(--danger); }
   .sweepnow{ background:var(--panel2); border:1px solid var(--accent2); border-radius:10px;
              padding:10px; margin-top:9px; font-size:13px; }
   .sweepnow b{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:15px; color:var(--accent); }
+  .chk{ display:inline-flex; align-items:center; gap:5px; font-size:11px;
+        font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--muted);
+        background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+        padding:5px 8px; margin:3px 4px 0 0; }
+  .chk input{ width:15px; height:15px; accent-color:var(--accent); }
   .hide{ display:none !important; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-<h1>LELO F1S V3 — Direct BLE Lab <span style="color:var(--accent)">v2</span></h1>
-<p class="sub">Harmony 佈局協定挖掘版 · Web Bluetooth · Chrome / Android</p>
+<h1>LELO F1S V3 — Direct BLE Lab <span style="color:var(--accent)">v3</span></h1>
+<p class="sub">感測器已解碼 · 身分欄位已定位 · 安全掃頻</p>
 
 <div class="warnbox" id="envWarn" style="display:none"></div>
 
-<!-- ============ 1 CONNECT ============ -->
+<!-- 1 CONNECT -->
 <section>
   <h2>1 · 連線 <span class="badge" id="connBadge">Idle</span></h2>
   <div class="grid2">
@@ -109,37 +122,55 @@
     <button class="b-ghost" id="btnDisconnect" disabled>Disconnect</button>
   </div>
   <div class="switch"><input type="checkbox" id="optWriteResp" checked><span>寫入用 write-with-response</span></div>
-  <p class="note">順序：關掉 LELO App → 按 Connect → 再開玩具電源。連上後<b>先不要動滑桿</b>，直接看第 2 節。</p>
+  <p class="note">斷線時會自動印出斷線前最後一次寫入，用來抓「哪個 byte 把玩具關掉了」。</p>
 </section>
 
-<!-- ============ 2 HANDSHAKE ============ -->
+<!-- 2 IDENTITY -->
 <section>
-  <h2>2 · Handshake 挖掘 <span class="badge" id="hsBadge">—</span></h2>
+  <h2>2 · 身分 / 授權欄位 <span class="badge" id="idBadge">—</span></h2>
   <div class="hint">
-    連上之後 <b>0x0A11</b> 和 <b>0xFFF2</b> 會自動訂閱 notify。<br>
-    → <b>現在按一次玩具的電源鍵</b>，看下面有沒有東西跑進來。
+    實驗：<b>連上後完全不要按電源鍵</b>，晾著看 0x0A11 會不會照樣在第 17 秒左右跳成非零。<br>
+    如果你有按，先按下面的「我剛按了電源鍵」在 log 插一個時間戳。
   </div>
   <table>
-    <thead><tr><th style="width:70px">來源</th><th>最後收到 / 讀到</th><th class="n" style="width:38px">#</th></tr></thead>
+    <thead><tr><th style="width:62px">UUID</th><th>值</th><th style="width:64px">推測</th></tr></thead>
     <tbody>
-      <tr id="rowWl"><td>0x0A11</td><td class="val" id="wlVal">—</td><td class="n" id="wlN">0</td></tr>
-      <tr id="rowTx"><td>0xFFF2</td><td class="val" id="txVal">—</td><td class="n" id="txN">0</td></tr>
+      <tr><td>0x0A01</td><td class="val" id="v0a01">—</td><td class="lock">MAC 禁寫</td></tr>
+      <tr><td>0x0A02</td><td class="val" id="v0a02">—</td><td class="lock">token 禁寫</td></tr>
+      <tr><td>0x0A03</td><td class="val" id="v0a03">—</td><td class="lock">唯讀</td></tr>
+      <tr><td>0x0A06</td><td class="val" id="v0a06">—</td><td>空白名單槽</td></tr>
+      <tr><td>0x0A30</td><td class="val" id="v0a30">—</td><td>旗標</td></tr>
+      <tr><td>0x0A40</td><td class="val" id="v0a40">—</td><td>旗標</td></tr>
+      <tr><td>0x0A50</td><td class="val" id="v0a50">—</td><td>旗標</td></tr>
+      <tr><td>0x0A11</td><td class="val" id="v0a11id">—</td><td id="v0a11f">float?</td></tr>
     </tbody>
   </table>
   <div class="btn-row" style="margin-top:9px">
-    <button class="b-ghost b-sm" id="btnHsRead" disabled>Read 0x0A11 + 0xFFF2</button>
-    <button class="b-warn b-sm" id="btnEcho" disabled>把 0x0A11 收到的原樣寫回</button>
+    <button class="b-warn b-sm" id="btnMarkPress" disabled>我剛按了電源鍵</button>
+    <button class="b-ghost b-sm" id="btnReadId" disabled>重讀全部</button>
   </div>
   <div class="btn-row" style="margin-top:8px">
-    <button class="b-ghost b-sm" id="btnEcho01" disabled>寫回 (byte0←01)</button>
-    <button class="b-ghost b-sm" id="btnEcho80" disabled>寫回 (byte0|=80)</button>
-    <button class="b-ghost b-sm" id="btnEchoRev" disabled>寫回 (反轉)</button>
+    <button class="b-primary b-sm" id="btnClaim" disabled>0x0A06 &larr; 0x0A01 的 MAC</button>
+    <button class="b-ghost b-sm" id="btnClaimZero" disabled>0x0A06 &larr; 6&times;00</button>
   </div>
-  <p class="note">舊 SDK 的 <code>0x0A0F</code> Key state 在這台上不存在，所以授權一定是走 <code>0x0A11</code>。
-  按電源鍵之後如果 0x0A11 吐出非零位元組，把它寫回去很可能就是那段 password handshake。</p>
+  <div class="btn-row" style="margin-top:8px">
+    <button class="b-ghost b-sm" id="btnF30" disabled>0x0A30 &larr; 01</button>
+    <button class="b-ghost b-sm" id="btnF40" disabled>0x0A40 &larr; 01</button>
+    <button class="b-ghost b-sm" id="btnF50" disabled>0x0A50 &larr; 01</button>
+  </div>
+  <div class="btn-row" style="margin-top:8px">
+    <button class="b-ghost b-sm" id="btnF30z" disabled>0x0A30 &larr; 00</button>
+    <button class="b-ghost b-sm" id="btnF40z" disabled>0x0A40 &larr; 00</button>
+    <button class="b-ghost b-sm" id="btnF50z" disabled>0x0A50 &larr; 00</button>
+  </div>
+  <div class="dangerbox">
+    <b>0x0A01 / 0x0A02 / 0x0A03 全域禁寫。</b>
+    0x0A02 是 14 字元隨機 token（<span class="mono">9r3EaUDF4WPzFg</span>），
+    覆蓋掉可能讓裝置永久認不得自己。這三個特徵在掃頻和 raw console 都會被擋下來。
+  </div>
 </section>
 
-<!-- ============ 3 CONTROL ============ -->
+<!-- 3 CONTROL -->
 <section>
   <h2>3 · 馬達控制</h2>
   <div>
@@ -161,7 +192,6 @@
     </select>
     <input type="text" id="frameCustom" class="hide" style="margin-top:7px" placeholder="例如 0A 01 {m} {v}">
   </div>
-
   <div style="margin-top:11px">
     <div class="slabel"><span>主馬達</span><b><span id="lblMain">0</span>%</b></div>
     <input type="range" id="sMain" min="0" max="100" value="0">
@@ -176,17 +206,13 @@
     <button class="b-danger" id="btnStop" disabled>STOP</button>
   </div>
 
-  <h2 style="margin:16px 0 8px">自動掃頻（找出正確的 特徵 × frame）</h2>
-  <p class="note" style="margin:0 0 8px">依序對每個可寫特徵送出每種 frame，各跑一段時間。<b>感覺到／聽到馬達動的那一刻，馬上按「就是這個！」</b>把組合鎖起來。</p>
-  <div class="row">
-    <div>
-      <label>每組停留 ms</label>
-      <input type="number" id="sweepDwell" value="1400" min="400" step="100">
-    </div>
-    <div>
-      <label>測試強度 %</label>
-      <input type="number" id="sweepLevel" value="70" min="1" max="100">
-    </div>
+  <h2 style="margin:16px 0 8px">安全掃頻</h2>
+  <p class="note" style="margin:0 0 8px">預設只掃 <span class="mono">FFF1 / FFF2 / 0A50</span>。
+  其他特徵要自己勾才會納入 —— 上一版把 MAC 和 token 也灌了垃圾，這是玩具中途關機的原因。</p>
+  <div id="sweepPicks"></div>
+  <div class="row" style="margin-top:9px">
+    <div><label>每組停留 ms</label><input type="number" id="sweepDwell" value="1400" min="400" step="100"></div>
+    <div><label>測試強度 %</label><input type="number" id="sweepLevel" value="70" min="1" max="100"></div>
   </div>
   <div class="btn-row" style="margin-top:9px">
     <button class="b-primary" id="btnSweep" disabled>開始掃頻</button>
@@ -199,53 +225,68 @@
   </div>
 </section>
 
-<!-- ============ 4 NOTIFY MONITOR ============ -->
+<!-- 4 SENSORS -->
 <section>
-  <h2>4 · 即時 Notify 監看 <span class="badge" id="monBadge">—</span></h2>
-  <p class="note" style="margin:0 0 8px">所有支援 notify 的特徵都會自動訂閱。<b>對玩具做動作</b>（塞進去、抽動、轉一轉、按按鍵），看哪一行在跳，就能認出誰是深度 / 轉速 / 按鍵。</p>
+  <h2>4 · 感測器 <span class="badge" id="sensBadge">—</span></h2>
+  <div class="grid3">
+    <div class="stat" id="cTemp"><div class="k">溫度 °C</div><div class="v" id="vTemp">—</div><div class="r" id="rTemp">0x0A0D</div></div>
+    <div class="stat" id="cPress"><div class="k">氣壓 mbar</div><div class="v" id="vPress">—</div><div class="r">0x0A0D</div></div>
+    <div class="stat" id="cVolt"><div class="k">電池 mV</div><div class="v" id="vVolt">—</div><div class="r">0x0A0A</div></div>
+  </div>
+  <div class="grid3" style="margin-top:9px">
+    <div class="stat" id="cAx"><div class="k">Accel X</div><div class="v" id="vAx">—</div></div>
+    <div class="stat" id="cAy"><div class="k">Accel Y</div><div class="v" id="vAy">—</div></div>
+    <div class="stat" id="cAz"><div class="k">Accel Z</div><div class="v" id="vAz">—</div></div>
+  </div>
+  <div class="grid3" style="margin-top:9px">
+    <div class="stat" id="cA6"><div class="k">0x0A0C byte6</div><div class="v" id="vA6">—</div><div class="r">深度？</div></div>
+    <div class="stat" id="cBatt"><div class="k">電量 %</div><div class="v" id="vBatt">—</div><div class="r">0x2A19</div></div>
+    <div class="stat" id="cBtn"><div class="k">0x0AA4</div><div class="v" id="vBtn">—</div><div class="r">需輪詢</div></div>
+  </div>
+  <div class="grid2" style="margin-top:9px">
+    <div class="stat" id="cF1"><div class="k">0x0A11 float A</div><div class="v" id="vF1" style="font-size:15px">—</div></div>
+    <div class="stat" id="cF2"><div class="k">0x0A11 float B</div><div class="v" id="vF2" style="font-size:15px">—</div></div>
+  </div>
+  <div class="btn-row" style="margin-top:10px">
+    <button class="b-ghost b-sm" id="btnResub" disabled>重新訂閱</button>
+    <button class="b-ghost b-sm" id="btnPoll" disabled>輪詢 0x0AA4 開/關</button>
+  </div>
+
+  <h2 style="margin:16px 0 8px">原始 notify 監看</h2>
   <table>
-    <thead><tr><th style="width:64px">UUID</th><th style="width:82px">解讀</th><th>值</th><th class="n" style="width:38px">#</th></tr></thead>
+    <thead><tr><th style="width:62px">UUID</th><th style="width:78px">解讀</th><th>值</th><th class="n" style="width:38px">#</th></tr></thead>
     <tbody id="monBody"></tbody>
   </table>
-  <div class="btn-row" style="margin-top:9px">
-    <button class="b-ghost b-sm" id="btnResub" disabled>重新訂閱全部</button>
-    <button class="b-ghost b-sm" id="btnPoll" disabled>輪詢 300ms 開/關</button>
-  </div>
 </section>
 
-<!-- ============ 5 DUMP ============ -->
+<!-- 5 DUMP -->
 <section>
   <h2>5 · 全特徵 dump <span class="badge" id="gattBadge">—</span></h2>
-  <div class="btn-row">
-    <button class="b-ghost b-sm" id="btnDump" disabled>Read 所有可讀特徵</button>
-  </div>
+  <div class="btn-row"><button class="b-ghost b-sm" id="btnDump" disabled>Read 所有可讀特徵</button></div>
   <table style="margin-top:9px">
-    <thead><tr><th style="width:64px">UUID</th><th style="width:44px">屬性</th><th>hex / ascii</th></tr></thead>
+    <thead><tr><th style="width:62px">UUID</th><th style="width:42px">屬性</th><th>hex / ascii</th></tr></thead>
     <tbody id="dumpBody"></tbody>
   </table>
 </section>
 
-<!-- ============ 6 RAW ============ -->
+<!-- 6 RAW -->
 <section>
   <h2>6 · Raw hex console</h2>
   <div>
-    <label>目標特徵（可填 4 碼短碼如 fff2，或完整 UUID）</label>
+    <label>目標特徵（4 碼短碼如 fff2，或完整 UUID）</label>
     <input type="text" id="rawUuid" value="fff2">
   </div>
-  <div style="margin-top:8px">
-    <label>Hex bytes</label>
-    <input type="text" id="rawHex" value="01 46 46">
-  </div>
+  <div style="margin-top:8px"><label>Hex bytes</label><input type="text" id="rawHex" value="01 46 46"></div>
   <div class="btn-row" style="margin-top:9px">
     <button class="b-primary b-sm" id="btnRawWrite" disabled>Write</button>
     <button class="b-ghost b-sm" id="btnRawRead" disabled>Read</button>
-    <button class="b-ghost b-sm" id="btnRawNotify" disabled>Notify on</button>
   </div>
-  <div style="margin-top:9px;font-size:12px" class="mono val" id="rawOut">—</div>
+  <div style="margin-top:9px;font-size:12px" class="val mono" id="rawOut">—</div>
 </section>
 
 <section>
   <h2>Log <button class="b-ghost b-sm" id="btnCopyLog" style="margin-left:auto;flex:none">Copy</button></h2>
+  <p class="note" style="margin:0 0 7px">notify 只在<b>數值改變時</b>才記一行，不再洗版。</p>
   <div id="log"></div>
 </section>
 
@@ -256,80 +297,80 @@
 
 function $(id){ return document.getElementById(id); }
 function pad2(n){ return (n<16?'0':'') + n.toString(16); }
-function hexOf(dv){
-  var a=[], i;
-  for (i=0;i<dv.byteLength;i++) a.push(pad2(dv.getUint8(i)).toUpperCase());
-  return a.join(' ');
-}
+function hexOf(dv){ var a=[],i; for(i=0;i<dv.byteLength;i++) a.push(pad2(dv.getUint8(i)).toUpperCase()); return a.join(' '); }
 function bytesOf(dv){ var a=[],i; for(i=0;i<dv.byteLength;i++) a.push(dv.getUint8(i)); return a; }
 function hexArr(a){ return a.map(function(b){ return pad2(b).toUpperCase(); }).join(' '); }
-function u16uuid(code){ return '0000' + ('000'+code.toString(16)).slice(-4) + '-0000-1000-8000-00805f9b34fb'; }
-function shortOf(uuid){
-  var s = String(uuid).toLowerCase();
-  if (s.length !== 36 || s.slice(8) !== '-0000-1000-8000-00805f9b34fb' || s.slice(0,4) !== '0000') return null;
-  return parseInt(s.slice(4,8), 16);
+function u16uuid(c){ return '0000' + ('000'+c.toString(16)).slice(-4) + '-0000-1000-8000-00805f9b34fb'; }
+function shortOf(u){
+  var s=String(u).toLowerCase();
+  if(s.length!==36 || s.slice(8)!=='-0000-1000-8000-00805f9b34fb' || s.slice(0,4)!=='0000') return null;
+  return parseInt(s.slice(4,8),16);
 }
-function shortLabel(uuid){
-  var sh = shortOf(uuid);
-  return sh === null ? uuid.slice(0,8) : '0x' + ('000'+sh.toString(16)).slice(-4).toUpperCase();
+function shortLabel(u){ var s=shortOf(u); return s===null? u.slice(0,8) : '0x'+('000'+s.toString(16)).slice(-4).toUpperCase(); }
+function delay(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+function asciiOf(dv){
+  var a='',i,b;
+  for(i=0;i<dv.byteLength;i++){ b=dv.getUint8(i); a += (b>=32&&b<127)?String.fromCharCode(b):'\u00b7'; }
+  return a;
 }
-function delay(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
-/* ---------- log ---------- */
 var logEl = $('log');
-function log(msg){
-  var t = new Date();
-  var ts = ('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2)+':'+('0'+t.getSeconds()).slice(-2)
-         + '.' + ('00'+t.getMilliseconds()).slice(-3);
-  logEl.textContent += ts + '  ' + msg + '\n';
+function log(m){
+  var t=new Date();
+  var ts=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2)+':'+('0'+t.getSeconds()).slice(-2)
+        +'.'+('00'+t.getMilliseconds()).slice(-3);
+  logEl.textContent += ts+'  '+m+'\n';
   logEl.scrollTop = logEl.scrollHeight;
 }
 $('btnCopyLog').addEventListener('click', function(){
-  var ta = document.createElement('textarea');
-  ta.value = logEl.textContent; document.body.appendChild(ta); ta.select();
-  try { document.execCommand('copy'); log('(log copied)'); } catch(e){}
+  var ta=document.createElement('textarea'); ta.value=logEl.textContent;
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); log('(log copied)'); }catch(e){}
   document.body.removeChild(ta);
 });
 
-/* ---------- constants ---------- */
-var SVC_LELO = u16uuid(0xfff0), SVC_DEVINFO = u16uuid(0x180a), SVC_BATT = u16uuid(0x180f);
-var C_WHITELIST = 0x0a11, C_TX = 0xfff2, C_CMD = 0xfff1;
+/* ---------- identity / safety ---------- */
+var SVC_LELO=u16uuid(0xfff0), SVC_DEVINFO=u16uuid(0x180a), SVC_BATT=u16uuid(0x180f);
+/* Never write to these — MAC, device token, and a read-only blob.
+   v2 swept them and the toy powered off mid-sweep. */
+var WRITE_BLOCKED = [0x0a01, 0x0a02, 0x0a03];
+function isBlocked(c){ var s=shortOf(c.uuid); return s!==null && WRITE_BLOCKED.indexOf(s)>=0; }
+
+var SWEEP_DEFAULT = [0xfff1, 0xfff2, 0x0a50];
+var SWEEP_FRAMES = ['01 {m} {v}','{m} {v}','01 {m} {v} 00','{m} {v} 00 00','01 00 {m} {v}','0A {m} {v}','01 {m}','{m}'];
 
 function optionalServices(){
-  var l = [SVC_LELO, SVC_DEVINFO, SVC_BATT];
+  var l=[SVC_LELO,SVC_DEVINFO,SVC_BATT];
   [0xfff1,0xfff2,0xfff3,0xfff4,0xffe0,0x0a00,0x0aa0].forEach(function(c){ l.push(u16uuid(c)); });
   l.push('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
   return l;
 }
 
 var S = {
-  device:null, server:null, services:[], byShort:{}, byUuid:{},
-  chars:[], notifyChars:[], writeChars:[],
-  cmdChar:null, connected:false, mutex:Promise.resolve(),
-  main:0, vib:0, pollTimer:null, sweep:null
+  device:null, server:null, chars:[], byShort:{}, byUuid:{},
+  notifyChars:[], writeChars:[], cmdChar:null, connected:false,
+  mutex:Promise.resolve(), main:0, vib:0, pollTimer:null, sweep:null,
+  lastWrite:null, connectedAt:0
 };
-
-function q(fn){ var r = S.mutex.then(fn, fn); S.mutex = r.catch(function(){}); return r; }
-function withTimeout(p, ms, label){
-  return new Promise(function(res, rej){
-    var to = setTimeout(function(){ rej(new Error(label+' timed out after '+ms+'ms')); }, ms);
-    p.then(function(v){ clearTimeout(to); res(v); }, function(e){ clearTimeout(to); rej(e); });
+function q(fn){ var r=S.mutex.then(fn,fn); S.mutex=r.catch(function(){}); return r; }
+function withTimeout(p,ms,l){
+  return new Promise(function(res,rej){
+    var to=setTimeout(function(){ rej(new Error(l+' timed out after '+ms+'ms')); },ms);
+    p.then(function(v){ clearTimeout(to); res(v); },function(e){ clearTimeout(to); rej(e); });
   });
 }
-function setBadge(el, t, c){ el.textContent = t; el.className = 'badge' + (c ? ' '+c : ''); }
+function setBadge(el,t,c){ el.textContent=t; el.className='badge'+(c?' '+c:''); }
 function props(c){
-  var p=c.properties||{}, o=[];
+  var p=c.properties||{},o=[];
   if(p.read)o.push('R'); if(p.write)o.push('W');
   if(p.writeWithoutResponse)o.push('w'); if(p.notify)o.push('N'); if(p.indicate)o.push('I');
   return o.join('');
 }
 function enableAll(on){
-  ['btnDisconnect','btnHsRead','btnEcho','btnEcho01','btnEcho80','btnEchoRev','btnPulse','btnStop',
-   'btnSweep','btnResub','btnPoll','btnDump','btnRawWrite','btnRawRead','btnRawNotify']
-   .forEach(function(id){ $(id).disabled = !on; });
+  ['btnDisconnect','btnMarkPress','btnReadId','btnClaim','btnClaimZero','btnF30','btnF40','btnF50',
+   'btnF30z','btnF40z','btnF50z','btnPulse','btnStop','btnSweep','btnResub','btnPoll','btnDump',
+   'btnRawWrite','btnRawRead'].forEach(function(i){ $(i).disabled = !on; });
 }
-
-/* ---------- env ---------- */
 (function(){
   var m=[];
   if(!navigator.bluetooth) m.push('這個瀏覽器沒有 Web Bluetooth。');
@@ -337,79 +378,73 @@ function enableAll(on){
   if(m.length){ $('envWarn').style.display='block'; $('envWarn').innerHTML=m.join('<br>'); }
 })();
 
-/* ==================================================================
-   CONNECT + DISCOVER
-   ================================================================== */
+/* ==================== CONNECT ==================== */
 $('btnConnect').addEventListener('click', function(){
-  connect().catch(function(e){
-    setBadge($('connBadge'),'Failed','err');
-    log('CONNECT FAILED: ' + (e && e.message ? e.message : e));
-  });
+  connect().catch(function(e){ setBadge($('connBadge'),'Failed','err'); log('CONNECT FAILED: '+(e&&e.message?e.message:e)); });
 });
 $('btnDisconnect').addEventListener('click', function(){
-  if (S.device && S.device.gatt && S.device.gatt.connected) S.device.gatt.disconnect();
+  if(S.device && S.device.gatt && S.device.gatt.connected) S.device.gatt.disconnect();
   onDrop();
 });
 
 function connect(){
-  var t0 = Date.now(), mode = $('scanMode').value, opts, opt = optionalServices();
-  if (mode==='service')   opts = { filters:[{ services:[SVC_LELO] }], optionalServices:opt };
-  else if (mode==='name') opts = { filters:[{ namePrefix:($('namePrefix').value||'F1') }], optionalServices:opt };
-  else                    opts = { acceptAllDevices:true, optionalServices:opt };
-
+  var t0=Date.now(), mode=$('scanMode').value, opts, opt=optionalServices();
+  if(mode==='service')   opts={ filters:[{services:[SVC_LELO]}], optionalServices:opt };
+  else if(mode==='name') opts={ filters:[{namePrefix:($('namePrefix').value||'F1')}], optionalServices:opt };
+  else                   opts={ acceptAllDevices:true, optionalServices:opt };
   setBadge($('connBadge'),'Scanning…','busy');
   return navigator.bluetooth.requestDevice(opts).then(function(d){
-    S.device = d;
-    log('picked: ' + (d.name||'(no name)'));
+    S.device=d; log('picked: '+(d.name||'(no name)'));
     d.addEventListener('gattserverdisconnected', onDrop);
     setBadge($('connBadge'),'Connecting…','busy');
-    return withTimeout(d.gatt.connect(), 30000, 'gatt.connect');
+    return withTimeout(d.gatt.connect(),30000,'gatt.connect');
   }).then(function(srv){
-    S.server = srv;
-    log('gatt.connect ok (+' + (Date.now()-t0) + 'ms)');
+    S.server=srv; S.connectedAt=Date.now();
+    log('gatt.connect ok (+'+(Date.now()-t0)+'ms)');
     return discover();
   }).then(function(){
-    S.connected = true; enableAll(true);
-    setBadge($('connBadge'), 'Connected: ' + (S.device.name||'?'), 'on');
+    S.connected=true; enableAll(true);
+    setBadge($('connBadge'),'Connected: '+(S.device.name||'?'),'on');
     return subscribeAll();
-  }).then(function(){
-    return dumpAll();
-  }).then(function(){
-    log('=====================================================');
-    log('>>> 現在按一次玩具的電源鍵，觀察第 2 節 0x0A11 有沒有值進來');
-    log('=====================================================');
-  });
+  }).then(function(){ return dumpAll(); })
+    .then(function(){ return readIdentity(); })
+    .then(function(){
+      log('================================================');
+      log('>>> 實驗：不要按電源鍵，晾著看 0x0A11 會不會自己跳成非零');
+      log('================================================');
+    });
 }
 
 function onDrop(){
-  if (!S.device) return;
+  if(!S.device) return;
+  var wasConn = S.connected;
   S.connected=false;
-  if (S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; }
+  if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; }
   stopSweep();
-  S.services=[]; S.byShort={}; S.byUuid={}; S.chars=[]; S.notifyChars=[]; S.writeChars=[];
-  S.cmdChar=null;
+  if(wasConn){
+    log('*** DISCONNECTED after ' + ((Date.now()-S.connectedAt)/1000).toFixed(1) + 's ***');
+    if(S.lastWrite) log('*** 斷線前最後一次寫入: ' + S.lastWrite.uuid + ' <- ' + S.lastWrite.hex +
+                        '  (' + ((Date.now()-S.lastWrite.t)/1000).toFixed(1) + 's 前) ***');
+  }
+  S.chars=[]; S.byShort={}; S.byUuid={}; S.notifyChars=[]; S.writeChars=[]; S.cmdChar=null;
   enableAll(false);
-  setBadge($('connBadge'),'Disconnected');
-  setBadge($('hsBadge'),'—'); setBadge($('monBadge'),'—'); setBadge($('gattBadge'),'—');
-  $('monBody').innerHTML=''; $('dumpBody').innerHTML='';
-  log('disconnected.');
+  setBadge($('connBadge'),'Disconnected'); setBadge($('idBadge'),'—');
+  setBadge($('sensBadge'),'—'); setBadge($('gattBadge'),'—');
+  $('monBody').innerHTML=''; $('dumpBody').innerHTML=''; $('sweepPicks').innerHTML='';
 }
 
 function discover(){
   return S.server.getPrimaryServices().then(function(svcs){
-    log('services: ' + svcs.length);
-    var chain = Promise.resolve();
-    S.services=[]; S.chars=[];
+    var chain=Promise.resolve(); S.chars=[];
+    log('services: '+svcs.length);
     svcs.forEach(function(svc){
-      chain = chain.then(function(){
+      chain=chain.then(function(){
         return svc.getCharacteristics().then(function(cs){
-          S.services.push({ uuid:svc.uuid, chars:cs });
           var names=[];
           cs.forEach(function(c){
-            S.chars.push(c);
-            S.byUuid[c.uuid]=c;
+            S.chars.push(c); S.byUuid[c.uuid]=c;
             var sh=shortOf(c.uuid);
-            if (sh!==null && S.byShort[sh]===undefined) S.byShort[sh]=c;
+            if(sh!==null && S.byShort[sh]===undefined) S.byShort[sh]=c;
             names.push(shortLabel(c.uuid)+'['+props(c)+']');
           });
           log('  '+svc.uuid+' → '+names.join(' '));
@@ -418,320 +453,367 @@ function discover(){
     });
     return chain;
   }).then(function(){
-    S.notifyChars = S.chars.filter(function(c){ return c.properties.notify || c.properties.indicate; });
-    S.writeChars  = S.chars.filter(function(c){ return c.properties.write || c.properties.writeWithoutResponse; });
+    S.notifyChars = S.chars.filter(function(c){ return c.properties.notify||c.properties.indicate; });
+    S.writeChars  = S.chars.filter(function(c){
+      return (c.properties.write||c.properties.writeWithoutResponse) && !isBlocked(c);
+    });
+    var blocked = S.chars.filter(isBlocked).length;
+    if(blocked) log('write-blocked: '+blocked+' 個身分特徵（0x0A01/0x0A02/0x0A03）已排除');
 
-    var sel = $('cmdSel'); sel.innerHTML='';
+    var sel=$('cmdSel'); sel.innerHTML='';
     S.writeChars.forEach(function(c){
       var o=document.createElement('option');
       o.value=c.uuid; o.textContent=shortLabel(c.uuid)+'  ['+props(c)+']';
       sel.appendChild(o);
     });
-    var pref = S.byShort[C_TX] || S.byShort[C_CMD] || S.writeChars[0] || null;
-    if (pref){ sel.value = pref.uuid; S.cmdChar = pref; }
-    log('writable: ' + S.writeChars.length + ' · notify-capable: ' + S.notifyChars.length);
-    if (pref) log('command char default → ' + shortLabel(pref.uuid) +
-                  (shortOf(pref.uuid)===C_TX ? '  (harmony tx，優先試這個)' : ''));
-    setBadge($('gattBadge'), S.chars.length + ' chars');
-    buildMonitor();
+    var pref = S.byShort[0xfff2] || S.byShort[0xfff1] || S.writeChars[0] || null;
+    if(pref){ sel.value=pref.uuid; S.cmdChar=pref; log('command char default → '+shortLabel(pref.uuid)); }
+    setBadge($('gattBadge'), S.chars.length+' chars');
+    buildMonitor(); buildSweepPicks();
   });
 }
 $('cmdSel').addEventListener('change', function(){
-  S.cmdChar = S.byUuid[this.value] || null;
-  log('command char → ' + (S.cmdChar ? shortLabel(S.cmdChar.uuid) : 'none'));
+  S.cmdChar = S.byUuid[this.value]||null;
+  log('command char → '+(S.cmdChar?shortLabel(S.cmdChar.uuid):'none'));
 });
 
-/* ==================================================================
-   R/W
-   ================================================================== */
-function writeCh(c, bytes){
-  var buf = new Uint8Array(bytes), wantResp = $('optWriteResp').checked;
+/* ==================== R/W ==================== */
+function writeCh(c,bytes){
+  if(isBlocked(c)){
+    log('BLOCKED write to '+shortLabel(c.uuid)+' — 身分欄位受保護');
+    return Promise.reject(new Error('write blocked'));
+  }
+  var buf=new Uint8Array(bytes), wantResp=$('optWriteResp').checked;
+  S.lastWrite = { uuid:shortLabel(c.uuid), hex:hexArr(bytes), t:Date.now() };
   return q(function(){
-    if (!wantResp && c.properties.writeWithoutResponse && c.writeValueWithoutResponse)
+    if(!wantResp && c.properties.writeWithoutResponse && c.writeValueWithoutResponse)
       return c.writeValueWithoutResponse(buf).catch(function(){ return c.writeValue(buf); });
-    if (c.writeValueWithResponse) return c.writeValueWithResponse(buf).catch(function(){ return c.writeValue(buf); });
+    if(c.writeValueWithResponse) return c.writeValueWithResponse(buf).catch(function(){ return c.writeValue(buf); });
     return c.writeValue(buf);
   });
 }
 function readCh(c){ return q(function(){ return c.readValue(); }); }
 
-/* ==================================================================
-   NOTIFY MONITOR
-   ================================================================== */
-var INTERPS = ['hex','u8','u16be','u16le','i16x3be','i16x3le','u32x2be','ascii','bits'];
-function interp(dv, mode){
-  var i, a;
+/* ==================== SENSOR DECODE ==================== */
+/* 0x0A0D : temp = u24BE(0..2)/100 degC , byte3 = 0xFF separator , press = u32BE(4..7) Pa
+   verified against three live samples and the SDK example values                      */
+function decode0A0D(dv){
+  if(dv.byteLength < 8) return null;
+  var t = (dv.getUint8(0)<<16 | dv.getUint8(1)<<8 | dv.getUint8(2)) / 100;
+  var p = dv.getUint32(4,false) / 100;
+  return { temp:t, press:p, sep:dv.getUint8(3) };
+}
+function flash(id){
+  var el=$(id); if(!el) return;
+  el.classList.add('live');
+  clearTimeout(el._ft);
+  el._ft=setTimeout(function(){ el.classList.remove('live'); },350);
+}
+function applySensor(c, dv){
+  var sh=shortOf(c.uuid);
+  if(sh===0x0a0d){
+    var d=decode0A0D(dv);
+    if(d){
+      $('vTemp').textContent=d.temp.toFixed(2);
+      $('vPress').textContent=d.press.toFixed(2);
+      $('rTemp').textContent='sep='+pad2(d.sep).toUpperCase();
+      flash('cTemp'); flash('cPress');
+    }
+  } else if(sh===0x0a0a){
+    if(dv.byteLength>=2){ $('vVolt').textContent=dv.getUint16(0,false); flash('cVolt'); }
+  } else if(sh===0x0a0c){
+    if(dv.byteLength>=6){
+      $('vAx').textContent=dv.getInt16(0,false);
+      $('vAy').textContent=dv.getInt16(2,false);
+      $('vAz').textContent=dv.getInt16(4,false);
+      flash('cAx'); flash('cAy'); flash('cAz');
+    }
+    if(dv.byteLength>=7){ $('vA6').textContent=dv.getUint8(6); flash('cA6'); }
+  } else if(sh===0x2a19){
+    $('vBatt').textContent=dv.getUint8(0)+'%'; flash('cBatt');
+  } else if(sh===0x0aa4){
+    $('vBtn').textContent='0x'+pad2(dv.getUint8(0)).toUpperCase(); flash('cBtn');
+  } else if(sh===0x0a11){
+    if(dv.byteLength>=8){
+      $('vF1').textContent=dv.getFloat32(0,false).toFixed(3);
+      $('vF2').textContent=dv.getFloat32(4,false).toFixed(3);
+      $('v0a11id').textContent=hexOf(dv);
+      $('v0a11f').textContent=dv.getFloat32(0,false).toFixed(2)+' / '+dv.getFloat32(4,false).toFixed(2);
+      flash('cF1'); flash('cF2');
+      if(bytesOf(dv).some(function(b){ return b!==0; })) setBadge($('idBadge'),'0x0A11 非零','on');
+    }
+  }
+}
+
+/* ==================== MONITOR (change-only logging) ==================== */
+var INTERPS=['hex','u8','u16be','u16le','i16x3be','f32x2be','ascii','bits'];
+function interp(dv,mode){
+  var i,a;
   try{
     switch(mode){
-      case 'u8':   return String(dv.getUint8(0));
-      case 'u16be':return String(dv.getUint16(0,false));
-      case 'u16le':return String(dv.getUint16(0,true));
+      case 'u8': return String(dv.getUint8(0));
+      case 'u16be': return String(dv.getUint16(0,false));
+      case 'u16le': return String(dv.getUint16(0,true));
       case 'i16x3be': return dv.getInt16(0,false)+' , '+dv.getInt16(2,false)+' , '+dv.getInt16(4,false);
-      case 'i16x3le': return dv.getInt16(0,true)+' , '+dv.getInt16(2,true)+' , '+dv.getInt16(4,true);
-      case 'u32x2be': return (dv.getUint32(0,false)/100).toFixed(2)+' | '+(dv.getUint32(4,false)/100).toFixed(2);
-      case 'ascii':
-        a=''; for(i=0;i<dv.byteLength;i++){ var b=dv.getUint8(i); a += (b>=32&&b<127)?String.fromCharCode(b):'\u00b7'; }
-        return a;
+      case 'f32x2be': return dv.getFloat32(0,false).toFixed(3)+' | '+dv.getFloat32(4,false).toFixed(3);
+      case 'ascii': return asciiOf(dv);
       case 'bits': return ('0000000'+dv.getUint8(0).toString(2)).slice(-8);
       default: return hexOf(dv);
     }
-  } catch(e){ return hexOf(dv) + '  (len ' + dv.byteLength + ')'; }
+  }catch(e){ return hexOf(dv)+'  (len '+dv.byteLength+')'; }
 }
-
-var monRows = {};
+var monRows={};
 function buildMonitor(){
-  var body = $('monBody'); body.innerHTML=''; monRows={};
+  var body=$('monBody'); body.innerHTML=''; monRows={};
   S.notifyChars.forEach(function(c){
-    var tr = document.createElement('tr');
-    var td1 = document.createElement('td'); td1.textContent = shortLabel(c.uuid);
-    var td2 = document.createElement('td');
-    var sel = document.createElement('select'); sel.className='mini';
+    var tr=document.createElement('tr');
+    var t1=document.createElement('td'); t1.textContent=shortLabel(c.uuid);
+    var t2=document.createElement('td');
+    var sel=document.createElement('select'); sel.className='mini';
+    sel.style.padding='3px 5px'; sel.style.fontSize='11px';
     INTERPS.forEach(function(m){ var o=document.createElement('option'); o.value=m; o.textContent=m; sel.appendChild(o); });
-    var sh = shortOf(c.uuid);
-    if (sh === 0x0a0c) sel.value = 'i16x3be';
-    if (sh === 0x2a19) sel.value = 'u8';
-    td2.appendChild(sel);
-    var td3 = document.createElement('td'); td3.className='val'; td3.textContent='—';
-    var td4 = document.createElement('td'); td4.className='n'; td4.textContent='0';
-    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
+    var sh=shortOf(c.uuid);
+    if(sh===0x0a0c) sel.value='i16x3be';
+    if(sh===0x0a11) sel.value='f32x2be';
+    if(sh===0x2a19) sel.value='u8';
+    if(sh===0x0a0a) sel.value='u16be';
+    t2.appendChild(sel);
+    var t3=document.createElement('td'); t3.className='val'; t3.textContent='—';
+    var t4=document.createElement('td'); t4.className='n'; t4.textContent='0';
+    tr.appendChild(t1); tr.appendChild(t2); tr.appendChild(t3); tr.appendChild(t4);
     body.appendChild(tr);
-    monRows[c.uuid] = { tr:tr, sel:sel, val:td3, n:td4, count:0, timer:null };
+    monRows[c.uuid]={ tr:tr, sel:sel, val:t3, n:t4, count:0, lastHex:null, timer:null };
   });
 }
-function onNotifyValue(c, dv){
-  var r = monRows[c.uuid];
-  if (r){
+function onNotifyValue(c,dv){
+  var r=monRows[c.uuid], h=hexOf(dv);
+  if(r){
     r.count++;
-    r.val.textContent = interp(dv, r.sel.value) + (r.sel.value !== 'hex' ? '   [' + hexOf(dv) + ']' : '');
-    r.n.textContent = r.count;
+    r.val.textContent = interp(dv,r.sel.value) + (r.sel.value!=='hex' ? '   ['+h+']' : '');
+    r.n.textContent=r.count;
     r.tr.classList.add('hot');
     clearTimeout(r.timer);
-    r.timer = setTimeout(function(){ r.tr.classList.remove('hot'); }, 400);
+    r.timer=setTimeout(function(){ r.tr.classList.remove('hot'); },400);
+    /* only log when the value actually changed */
+    if(r.lastHex !== h){
+      r.lastHex = h;
+      log('notify ' + shortLabel(c.uuid) + ' = ' + h + '   (+' +
+          ((Date.now()-S.connectedAt)/1000).toFixed(1) + 's)');
+    }
   }
-  var sh = shortOf(c.uuid);
-  if (sh === C_WHITELIST) setHs('wl', dv);
-  if (sh === C_TX)        setHs('tx', dv);
+  applySensor(c,dv);
 }
-
-var hsState = { wl:{n:0,bytes:null}, tx:{n:0,bytes:null} };
-function setHs(which, dv){
-  var st = hsState[which];
-  st.n++; st.bytes = bytesOf(dv);
-  $(which+'Val').textContent = hexOf(dv);
-  $(which+'N').textContent = st.n;
-  var tr = $(which==='wl'?'rowWl':'rowTx');
-  tr.classList.add('hot'); setTimeout(function(){ tr.classList.remove('hot'); }, 600);
-  var nonzero = st.bytes.some(function(b){ return b !== 0; });
-  log('HANDSHAKE ' + (which==='wl'?'0x0A11':'0xFFF2') + ' → ' + hexOf(dv) + (nonzero ? '   <<< 非零！' : ''));
-  if (which==='wl' && nonzero) setBadge($('hsBadge'), '0x0A11 有料', 'on');
-}
-
 function subscribeAll(){
-  var chain = Promise.resolve(), ok=0, fail=0;
+  var chain=Promise.resolve(), ok=0, fail=0;
   S.notifyChars.forEach(function(c){
-    chain = chain.then(function(){
+    chain=chain.then(function(){
       return q(function(){ return c.startNotifications(); }).then(function(){
         ok++;
-        c.addEventListener('characteristicvaluechanged', function(e){ onNotifyValue(c, e.target.value); });
-        log('notify ON  ' + shortLabel(c.uuid));
-      }, function(e){
-        fail++;
-        log('notify FAIL ' + shortLabel(c.uuid) + ': ' + e.message);
-      });
+        c.addEventListener('characteristicvaluechanged', function(e){ onNotifyValue(c,e.target.value); });
+        log('notify ON  '+shortLabel(c.uuid));
+      }, function(e){ fail++; log('notify FAIL '+shortLabel(c.uuid)+': '+e.message); });
     });
   });
-  return chain.then(function(){ setBadge($('monBadge'), ok+' on / '+fail+' fail', ok?'on':'err'); });
+  return chain.then(function(){ setBadge($('sensBadge'), ok+' on / '+fail+' fail', ok?'on':'err'); });
 }
 $('btnResub').addEventListener('click', function(){ subscribeAll(); });
-
 $('btnPoll').addEventListener('click', function(){
-  if (S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; log('polling off'); return; }
-  S.pollTimer = setInterval(function(){
-    S.notifyChars.forEach(function(c){
-      if (!c.properties.read) return;
-      readCh(c).then(function(v){ onNotifyValue(c, v); }, function(){});
-    });
-  }, 300);
-  log('polling every 300ms');
+  if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; log('polling off'); return; }
+  var c=S.byShort[0x0aa4];
+  if(!c){ log('0x0AA4 不存在'); return; }
+  S.pollTimer=setInterval(function(){
+    if(S.connected) readCh(c).then(function(v){ onNotifyValue(c,v); },function(){});
+  },300);
+  log('polling 0x0AA4 every 300ms');
 });
 
-/* ==================================================================
-   HANDSHAKE ACTIONS
-   ================================================================== */
-$('btnHsRead').addEventListener('click', function(){
-  [[C_WHITELIST,'wl'],[C_TX,'tx']].forEach(function(p){
-    var c = S.byShort[p[0]];
-    if (!c || !c.properties.read) { log('read skip ' + p[1]); return; }
-    readCh(c).then(function(v){ setHs(p[1], v); }, function(e){ log('read err '+p[1]+': '+e.message); });
-  });
-});
-function echoWhitelist(transform, label){
-  var c = S.byShort[C_WHITELIST];
-  if (!c) { log('0x0A11 不存在'); return; }
-  var src = hsState.wl.bytes;
-  if (!src) { log('還沒有收到 0x0A11 的值，先按 Read 或按電源鍵'); return; }
-  var b = transform(src.slice());
-  writeCh(c, b).then(function(){
-    log('whitelist <- ' + label + ' : ' + hexArr(b));
-    return readCh(c).then(function(v){ setHs('wl', v); }, function(){});
-  }, function(e){ log('whitelist write failed (' + label + '): ' + e.message); });
-}
-$('btnEcho').addEventListener('click', function(){ echoWhitelist(function(b){ return b; }, 'echo'); });
-$('btnEcho01').addEventListener('click', function(){ echoWhitelist(function(b){ b[0]=0x01; return b; }, 'byte0=01'); });
-$('btnEcho80').addEventListener('click', function(){ echoWhitelist(function(b){ b[0]=b[0]|0x80; return b; }, 'byte0|=80'); });
-$('btnEchoRev').addEventListener('click', function(){ echoWhitelist(function(b){ return b.reverse(); }, 'reversed'); });
-
-/* ==================================================================
-   MOTOR — single write in flight, always sends newest value
-   ================================================================== */
-function frameTpl(){
-  var v = $('frameSel').value;
-  return v==='__custom__' ? ($('frameCustom').value || '01 {m} {v}') : v;
-}
-function buildFrame(tpl, m, v){
-  var out=[];
-  tpl.trim().split(/\s+/).forEach(function(tok){
-    if (tok==='{m}') out.push(m & 0xff);
-    else if (tok==='{v}') out.push(v & 0xff);
-    else { var n=parseInt(tok,16); if(!isNaN(n)) out.push(n & 0xff); }
-  });
-  return out;
-}
-$('frameSel').addEventListener('change', function(){
-  $('frameCustom').classList.toggle('hide', this.value!=='__custom__');
-});
-
-var motorBusy = false, motorDirty = false, lastLogged = '';
-function scheduleMotors(){ motorDirty = true; pumpMotors(); }
-function pumpMotors(){
-  if (motorBusy || !motorDirty || !S.connected || !S.cmdChar) return;
-  motorDirty = false; motorBusy = true;
-  var m = S.main, v = S.vib;
-  var bytes = buildFrame(frameTpl(), m, v);
-  writeCh(S.cmdChar, bytes).then(function(){
-    var line = hexArr(bytes);
-    if (line !== lastLogged){ lastLogged = line; log('motor -> ' + line + '  (m='+m+'% v='+v+'%)'); }
-  }, function(e){ log('motor write failed: ' + e.message); })
-  .then(function(){ motorBusy = false; setTimeout(pumpMotors, 40); });
-}
-function setMain(n){ S.main=Math.max(0,Math.min(100,n|0)); $('sMain').value=S.main; $('lblMain').textContent=S.main; }
-function setVib(n){  S.vib =Math.max(0,Math.min(100,n|0)); $('sVib').value =S.vib;  $('lblVib').textContent =S.vib;  }
-$('sMain').addEventListener('input', function(){ setMain(+this.value); if($('optLink').checked) setVib(S.main); scheduleMotors(); });
-$('sVib').addEventListener('input',  function(){ setVib(+this.value);  if($('optLink').checked) setMain(S.vib); scheduleMotors(); });
-
-$('btnPulse').addEventListener('click', function(){
-  setMain(60); setVib(60); scheduleMotors();
-  setTimeout(function(){ setMain(0); setVib(0); scheduleMotors(); }, 2000);
-});
-$('btnStop').addEventListener('click', function(){
-  stopSweep();
-  setMain(0); setVib(0); scheduleMotors();
-  if (S.cmdChar) writeCh(S.cmdChar,[0x01,0xFF]).then(function(){ log('STOP -> 01 FF'); }, function(){});
-});
-
-/* ==================================================================
-   AUTO SWEEP
-   ================================================================== */
-var SWEEP_FRAMES = ['01 {m} {v}','{m} {v}','01 {m} {v} 00','{m} {v} 00 00','01 00 {m} {v}','0A {m} {v}','01 {m}','{m}'];
-
-$('btnSweep').addEventListener('click', startSweep);
-$('btnSweepStop').addEventListener('click', stopSweep);
-$('btnSweepMark').addEventListener('click', function(){
-  var s = S.sweep; if (!s) return;
-  var c = s.chars[s.ci], f = s.frames[s.fi];
-  stopSweep();
-  S.cmdChar = c; $('cmdSel').value = c.uuid;
-  var found = false, i;
-  for (i=0;i<$('frameSel').options.length;i++) if ($('frameSel').options[i].value === f) found = true;
-  if (found) { $('frameSel').value = f; $('frameCustom').classList.add('hide'); }
-  else { $('frameSel').value='__custom__'; $('frameCustom').classList.remove('hide'); $('frameCustom').value=f; }
-  log('*** LOCKED: char=' + shortLabel(c.uuid) + '  frame="' + f + '" ***');
-  setBadge($('hsBadge'), '找到指令格式', 'on');
-});
-
-function startSweep(){
-  if (!S.connected) return;
-  var chars = S.writeChars.slice();
-  var rank = function(c){ var s=shortOf(c.uuid);
-    if (s===0xfff2) return 0; if (s===0xfff1) return 1; if (s===0x0a50) return 2;
-    if (s===0x0a30||s===0x0a40) return 3; if (s===0x0a01||s===0x0a02) return 4; return 5; };
-  chars.sort(function(a,b){ return rank(a)-rank(b); });
-  S.sweep = { chars:chars, frames:SWEEP_FRAMES, ci:0, fi:0, stop:false };
-  $('sweepNow').style.display='block';
-  $('btnSweep').disabled=true; $('btnSweepStop').disabled=false;
-  log('sweep start: ' + chars.length + ' chars x ' + SWEEP_FRAMES.length + ' frames');
-  sweepStep();
-}
-function stopSweep(){
-  if (S.sweep) S.sweep.stop = true;
-  S.sweep = null;
-  $('sweepNow').style.display='none';
-  $('btnSweep').disabled = !S.connected; $('btnSweepStop').disabled=true;
-}
-function sweepStep(){
-  var s = S.sweep;
-  if (!s || s.stop) return;
-  if (s.ci >= s.chars.length){ log('sweep 全部試完，沒有命中。'); stopSweep(); return; }
-  var c = s.chars[s.ci], f = s.frames[s.fi];
-  var lvl = Math.max(1, Math.min(100, +$('sweepLevel').value || 70));
-  var dwell = Math.max(400, +$('sweepDwell').value || 1400);
-  var on = buildFrame(f, lvl, lvl), off = buildFrame(f, 0, 0);
-
-  $('sweepLabel').textContent = shortLabel(c.uuid) + '  <-  ' + hexArr(on);
-  $('sweepProg').textContent = 'char ' + (s.ci+1) + '/' + s.chars.length +
-                               ' · frame ' + (s.fi+1) + '/' + s.frames.length + '  「' + f + '」';
-
-  writeCh(c, on).then(function(){
-    log('sweep ' + shortLabel(c.uuid) + ' <- ' + hexArr(on));
-  }, function(e){
-    log('sweep ' + shortLabel(c.uuid) + ' write err: ' + e.message);
-  }).then(function(){ return delay(dwell); })
-    .then(function(){ if (S.sweep && !S.sweep.stop) return writeCh(c, off).catch(function(){}); })
-    .then(function(){ return delay(300); })
-    .then(function(){
-      if (!S.sweep || S.sweep.stop) return;
-      s.fi++;
-      if (s.fi >= s.frames.length){ s.fi = 0; s.ci++; }
-      sweepStep();
-    });
-}
-
-/* ==================================================================
-   DUMP
-   ================================================================== */
-function dumpAll(){
-  $('dumpBody').innerHTML='';
-  var chain = Promise.resolve();
-  S.chars.forEach(function(c){
-    if (!c.properties.read) return;
-    chain = chain.then(function(){
+/* ==================== IDENTITY ==================== */
+var ID_CELLS = [[0x0a01,'v0a01'],[0x0a02,'v0a02'],[0x0a03,'v0a03'],[0x0a06,'v0a06'],
+                [0x0a30,'v0a30'],[0x0a40,'v0a40'],[0x0a50,'v0a50'],[0x0a11,'v0a11id']];
+function readIdentity(){
+  var chain=Promise.resolve();
+  ID_CELLS.forEach(function(p){
+    var c=S.byShort[p[0]];
+    if(!c || !c.properties.read){ $(p[1]).textContent='absent'; return; }
+    chain=chain.then(function(){
       return readCh(c).then(function(v){
-        addDumpRow(c, hexOf(v) + '   "' + interp(v,'ascii') + '"');
-        log('dump ' + shortLabel(c.uuid) + ' = ' + hexOf(v));
-      }, function(e){
-        addDumpRow(c, 'ERR ' + e.message);
-      });
+        var txt=hexOf(v), a=asciiOf(v);
+        if(/^[\x20-\x7e]+$/.test(a) && a.length>3) txt += '  "'+a+'"';
+        $(p[1]).textContent=txt;
+      }, function(e){ $(p[1]).textContent='ERR '+e.message; });
     });
   });
   return chain;
 }
-function addDumpRow(c, text){
+$('btnReadId').addEventListener('click', function(){ readIdentity(); });
+$('btnMarkPress').addEventListener('click', function(){
+  log('########  使用者按下電源鍵  (+'+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s)  ########');
+});
+function writeShort(code, bytes, label){
+  var c=S.byShort[code];
+  if(!c){ log(label+': 0x'+code.toString(16)+' 不存在'); return; }
+  writeCh(c,bytes).then(function(){
+    log(label+' → '+hexArr(bytes));
+    return readIdentity();
+  }, function(e){ log(label+' FAILED: '+e.message); });
+}
+$('btnClaim').addEventListener('click', function(){
+  var mac=S.byShort[0x0a01];
+  if(!mac){ log('0x0A01 不存在'); return; }
+  readCh(mac).then(function(v){
+    var b=bytesOf(v);
+    log('MAC read = '+hexArr(b));
+    writeShort(0x0a06, b, '0x0A06 ← MAC');
+  }, function(e){ log('MAC read failed: '+e.message); });
+});
+$('btnClaimZero').addEventListener('click', function(){ writeShort(0x0a06,[0,0,0,0,0,0],'0x0A06 ← 零'); });
+$('btnF30').addEventListener('click',  function(){ writeShort(0x0a30,[1],'0x0A30 ← 01'); });
+$('btnF40').addEventListener('click',  function(){ writeShort(0x0a40,[1],'0x0A40 ← 01'); });
+$('btnF50').addEventListener('click',  function(){ writeShort(0x0a50,[1],'0x0A50 ← 01'); });
+$('btnF30z').addEventListener('click', function(){ writeShort(0x0a30,[0],'0x0A30 ← 00'); });
+$('btnF40z').addEventListener('click', function(){ writeShort(0x0a40,[0],'0x0A40 ← 00'); });
+$('btnF50z').addEventListener('click', function(){ writeShort(0x0a50,[0],'0x0A50 ← 00'); });
+
+/* ==================== MOTOR ==================== */
+function frameTpl(){ var v=$('frameSel').value; return v==='__custom__'?($('frameCustom').value||'01 {m} {v}'):v; }
+function buildFrame(tpl,m,v){
+  var out=[];
+  tpl.trim().split(/\s+/).forEach(function(tok){
+    if(tok==='{m}') out.push(m&0xff);
+    else if(tok==='{v}') out.push(v&0xff);
+    else { var n=parseInt(tok,16); if(!isNaN(n)) out.push(n&0xff); }
+  });
+  return out;
+}
+$('frameSel').addEventListener('change', function(){ $('frameCustom').classList.toggle('hide', this.value!=='__custom__'); });
+
+var motorBusy=false, motorDirty=false, lastLogged='';
+function scheduleMotors(){ motorDirty=true; pumpMotors(); }
+function pumpMotors(){
+  if(motorBusy||!motorDirty||!S.connected||!S.cmdChar) return;
+  motorDirty=false; motorBusy=true;
+  var m=S.main, v=S.vib, bytes=buildFrame(frameTpl(),m,v);
+  writeCh(S.cmdChar,bytes).then(function(){
+    var line=hexArr(bytes);
+    if(line!==lastLogged){ lastLogged=line; log('motor -> '+line+'  (m='+m+'% v='+v+'%)'); }
+  }, function(e){ log('motor write failed: '+e.message); })
+  .then(function(){ motorBusy=false; setTimeout(pumpMotors,40); });
+}
+function setMain(n){ S.main=Math.max(0,Math.min(100,n|0)); $('sMain').value=S.main; $('lblMain').textContent=S.main; }
+function setVib(n){ S.vib=Math.max(0,Math.min(100,n|0)); $('sVib').value=S.vib; $('lblVib').textContent=S.vib; }
+$('sMain').addEventListener('input', function(){ setMain(+this.value); if($('optLink').checked) setVib(S.main); scheduleMotors(); });
+$('sVib').addEventListener('input',  function(){ setVib(+this.value);  if($('optLink').checked) setMain(S.vib); scheduleMotors(); });
+$('btnPulse').addEventListener('click', function(){
+  setMain(60); setVib(60); scheduleMotors();
+  setTimeout(function(){ setMain(0); setVib(0); scheduleMotors(); },2000);
+});
+$('btnStop').addEventListener('click', function(){
+  stopSweep(); setMain(0); setVib(0); scheduleMotors();
+  if(S.cmdChar) writeCh(S.cmdChar,[0x01,0xFF]).then(function(){ log('STOP -> 01 FF'); },function(){});
+});
+
+/* ==================== SAFE SWEEP ==================== */
+function buildSweepPicks(){
+  var host=$('sweepPicks'); host.innerHTML='';
+  S.writeChars.forEach(function(c){
+    var sh=shortOf(c.uuid);
+    var lab=document.createElement('label'); lab.className='chk';
+    var cb=document.createElement('input'); cb.type='checkbox';
+    cb.checked = (sh!==null && SWEEP_DEFAULT.indexOf(sh)>=0);
+    cb.setAttribute('data-uuid', c.uuid);
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(shortLabel(c.uuid)));
+    host.appendChild(lab);
+  });
+}
+$('btnSweep').addEventListener('click', startSweep);
+$('btnSweepStop').addEventListener('click', stopSweep);
+$('btnSweepMark').addEventListener('click', function(){
+  var s=S.sweep; if(!s) return;
+  var c=s.chars[s.ci], f=s.frames[s.fi];
+  stopSweep();
+  S.cmdChar=c; $('cmdSel').value=c.uuid;
+  var found=false,i;
+  for(i=0;i<$('frameSel').options.length;i++) if($('frameSel').options[i].value===f) found=true;
+  if(found){ $('frameSel').value=f; $('frameCustom').classList.add('hide'); }
+  else { $('frameSel').value='__custom__'; $('frameCustom').classList.remove('hide'); $('frameCustom').value=f; }
+  log('*** LOCKED: char='+shortLabel(c.uuid)+'  frame="'+f+'" ***');
+  setBadge($('idBadge'),'找到指令格式','on');
+});
+function startSweep(){
+  if(!S.connected) return;
+  var picked=[];
+  Array.prototype.forEach.call($('sweepPicks').querySelectorAll('input:checked'), function(cb){
+    var c=S.byUuid[cb.getAttribute('data-uuid')];
+    if(c && !isBlocked(c)) picked.push(c);
+  });
+  if(!picked.length){ log('沒有勾選任何特徵。'); return; }
+  S.sweep={ chars:picked, frames:SWEEP_FRAMES, ci:0, fi:0, stop:false };
+  $('sweepNow').style.display='block';
+  $('btnSweep').disabled=true; $('btnSweepStop').disabled=false;
+  log('sweep start: '+picked.map(function(c){ return shortLabel(c.uuid); }).join(', ')+
+      '  ('+picked.length+' x '+SWEEP_FRAMES.length+' 組)');
+  sweepStep();
+}
+function stopSweep(){
+  if(S.sweep) S.sweep.stop=true;
+  S.sweep=null;
+  $('sweepNow').style.display='none';
+  $('btnSweep').disabled=!S.connected; $('btnSweepStop').disabled=true;
+}
+function sweepStep(){
+  var s=S.sweep;
+  if(!s||s.stop||!S.connected) return;
+  if(s.ci>=s.chars.length){ log('sweep 全部試完，沒有命中。'); stopSweep(); return; }
+  var c=s.chars[s.ci], f=s.frames[s.fi];
+  var lvl=Math.max(1,Math.min(100,+$('sweepLevel').value||70));
+  var dwell=Math.max(400,+$('sweepDwell').value||1400);
+  var on=buildFrame(f,lvl,lvl), off=buildFrame(f,0,0);
+  $('sweepLabel').textContent = shortLabel(c.uuid)+'  <-  '+hexArr(on);
+  $('sweepProg').textContent  = 'char '+(s.ci+1)+'/'+s.chars.length+
+                                ' · frame '+(s.fi+1)+'/'+s.frames.length+'  「'+f+'」';
+  writeCh(c,on).then(function(){ log('sweep '+shortLabel(c.uuid)+' <- '+hexArr(on)); },
+                     function(e){ log('sweep '+shortLabel(c.uuid)+' err: '+e.message); })
+    .then(function(){ return delay(dwell); })
+    .then(function(){ if(S.sweep && !S.sweep.stop && S.connected) return writeCh(c,off).catch(function(){}); })
+    .then(function(){ return delay(300); })
+    .then(function(){
+      if(!S.sweep||S.sweep.stop||!S.connected) return;
+      s.fi++;
+      if(s.fi>=s.frames.length){ s.fi=0; s.ci++; }
+      sweepStep();
+    });
+}
+
+/* ==================== DUMP ==================== */
+function dumpAll(){
+  $('dumpBody').innerHTML='';
+  var chain=Promise.resolve();
+  S.chars.forEach(function(c){
+    if(!c.properties.read) return;
+    chain=chain.then(function(){
+      return readCh(c).then(function(v){
+        addDumpRow(c, hexOf(v)+'   "'+asciiOf(v)+'"');
+      }, function(e){ addDumpRow(c,'ERR '+e.message); });
+    });
+  });
+  return chain;
+}
+function addDumpRow(c,text){
   var tr=document.createElement('tr');
   var a=document.createElement('td'); a.textContent=shortLabel(c.uuid);
-  var b=document.createElement('td'); b.textContent=props(c);
+  var b=document.createElement('td'); b.textContent=props(c)+(isBlocked(c)?' 🔒':'');
   var d=document.createElement('td'); d.className='val'; d.textContent=text;
   tr.appendChild(a); tr.appendChild(b); tr.appendChild(d);
   $('dumpBody').appendChild(tr);
 }
 $('btnDump').addEventListener('click', function(){ dumpAll(); });
 
-/* ==================================================================
-   RAW
-   ================================================================== */
+/* ==================== RAW ==================== */
 function rawChar(){
-  var u = ($('rawUuid').value||'').trim().toLowerCase().replace(/^0x/,'');
-  if (/^[0-9a-f]{4}$/.test(u)) u = u16uuid(parseInt(u,16));
-  return S.byUuid[u] || null;
+  var u=($('rawUuid').value||'').trim().toLowerCase().replace(/^0x/,'');
+  if(/^[0-9a-f]{4}$/.test(u)) u=u16uuid(parseInt(u,16));
+  return S.byUuid[u]||null;
 }
 function parseHex(s){
   return (s||'').trim().split(/[\s,]+/).map(function(t){ return parseInt(t,16)&0xff; })
@@ -739,30 +821,24 @@ function parseHex(s){
 }
 $('btnRawWrite').addEventListener('click', function(){
   var c=rawChar(); if(!c){ $('rawOut').textContent='找不到該 UUID'; return; }
+  if(isBlocked(c)){ $('rawOut').textContent='這個特徵受保護，禁止寫入'; log('BLOCKED raw write to '+shortLabel(c.uuid)); return; }
   var b=parseHex($('rawHex').value);
   writeCh(c,b).then(function(){
     $('rawOut').textContent='wrote OK: '+hexArr(b);
-    log('raw ' + shortLabel(c.uuid) + ' <- ' + hexArr(b));
+    log('raw '+shortLabel(c.uuid)+' <- '+hexArr(b));
   }, function(e){ $('rawOut').textContent='ERR '+e.message; });
 });
 $('btnRawRead').addEventListener('click', function(){
   var c=rawChar(); if(!c){ $('rawOut').textContent='找不到該 UUID'; return; }
   readCh(c).then(function(v){
-    $('rawOut').textContent = hexOf(v) + '   "' + interp(v,'ascii') + '"';
-    log('raw read ' + shortLabel(c.uuid) + ' = ' + hexOf(v));
-  }, function(e){ $('rawOut').textContent='ERR '+e.message; });
-});
-$('btnRawNotify').addEventListener('click', function(){
-  var c=rawChar(); if(!c){ $('rawOut').textContent='找不到該 UUID'; return; }
-  q(function(){ return c.startNotifications(); }).then(function(){
-    c.addEventListener('characteristicvaluechanged', function(e){ onNotifyValue(c, e.target.value); });
-    log('raw notify on ' + shortLabel(c.uuid));
+    $('rawOut').textContent=hexOf(v)+'   "'+asciiOf(v)+'"';
+    log('raw read '+shortLabel(c.uuid)+' = '+hexOf(v));
   }, function(e){ $('rawOut').textContent='ERR '+e.message; });
 });
 
-log('v2 ready — Harmony 佈局挖掘版。');
-log('實測這台沒有 0x0A0F Key state / 0x0AA3 Hall / 0x0A0B Depth / 0x0AA5 Cruise，');
-log('但有 0x0A11(RWN) 與 0xFFF2(RWN) → 指令端點很可能是 0xFFF2，授權走 0x0A11 notify。');
+log('v3 ready.');
+log('感測器已正確解碼：0x0A0D = 溫度(u24BE/100) + FF + 氣壓(u32BE/100 mbar)，0x0A0A = 電池 mV。');
+log('身分欄位 0x0A01(MAC) / 0x0A02(token) / 0x0A03 已全域禁寫，掃頻預設只碰 FFF1/FFF2/0A50。');
 </script>
 </body>
 </html>
