@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>LELO F1S V3 — Direct BLE Control v7</title>
+<title>LELO F1S V3 — Direct BLE Control v8</title>
 <style>
   :root{
     --bg:#0b0b12; --panel:#15151f; --panel2:#1d1d2a; --border:#2c2c3d;
@@ -23,7 +23,7 @@
   section{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:13px; margin-bottom:12px; }
   h2{ font-size:14px; margin:0 0 10px; letter-spacing:.3px; display:flex; align-items:center; gap:8px; }
   h2 .badge{ margin-left:auto; }
-  h3{ font-size:12px; margin:16px 0 7px; color:var(--muted); letter-spacing:.4px; text-transform:uppercase; }
+  h3{ font-size:12px; margin:15px 0 7px; color:var(--accent); letter-spacing:.4px; }
   label{ display:block; font-size:11px; color:var(--muted); margin-bottom:3px; }
   input[type=text], input[type=number], select{
     width:100%; background:#0f0f17; color:var(--text);
@@ -46,7 +46,6 @@
   .b-warn{ background:var(--warn); color:#2a1a00; }
   .b-ghost{ background:var(--panel2); border:1px solid var(--border); color:var(--text); }
   .b-sm{ padding:6px 10px; font-size:12px; }
-  .b-big{ padding:15px; font-size:15px; }
   .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
   .grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
   .row{ display:flex; gap:9px; align-items:flex-end; }
@@ -74,8 +73,10 @@
   .auth.s3{ background:#2a0d14; border-color:var(--danger); color:#ffc4ce; }
   .mono{ font-family:ui-monospace,Menlo,Consolas,monospace; }
   .frame{ background:#08080e; border:1px solid var(--border); border-radius:9px;
-          padding:9px; margin-top:9px; font-family:ui-monospace,Menlo,Consolas,monospace;
-          font-size:12px; color:var(--ok); word-break:break-all; }
+          padding:10px; margin-top:9px; font-family:ui-monospace,Menlo,Consolas,monospace;
+          font-size:14px; color:var(--ok); word-break:break-all; letter-spacing:1px; }
+  .motor{ background:var(--panel2); border:1px solid var(--border); border-radius:11px; padding:11px; margin-top:9px; }
+  .motor .hd{ font-size:12px; font-weight:700; color:var(--accent); margin-bottom:7px; }
   .stat{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:8px 10px; overflow:hidden; }
   .stat .k{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -83,10 +84,11 @@
   .stat .r{ font-size:10px; color:var(--muted); font-family:ui-monospace,Menlo,Consolas,monospace;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .stat.live{ border-color:var(--ok); }
-  .bar{ height:6px; background:#0f0f17; border-radius:4px; overflow:hidden; margin-top:5px; }
+  .bar{ height:7px; background:#0f0f17; border-radius:4px; overflow:hidden; margin-top:5px; }
   .bar > div{ height:100%; background:var(--accent); width:0%; transition:width .12s linear; }
+  .bar.g > div{ background:var(--ok); }
   #log{ background:#08080e; border:1px solid var(--border); border-radius:10px;
-        padding:9px; height:200px; overflow:auto; font-size:11px; line-height:1.45;
+        padding:9px; height:190px; overflow:auto; font-size:11px; line-height:1.45;
         font-family:ui-monospace,Menlo,Consolas,monospace; white-space:pre-wrap; word-break:break-word; }
   table{ width:100%; border-collapse:collapse; font-size:11px; }
   th{ text-align:left; color:var(--muted); font-weight:600; font-size:10px;
@@ -107,8 +109,8 @@
 <body>
 <div class="wrap">
 
-<h1>LELO F1S V3 — Direct BLE Control <span style="color:var(--accent)">v7</span></h1>
-<p class="sub">雙馬達 · 感測器調變 · 未知指令掃描</p>
+<h1>LELO F1S V3 — Direct BLE Control <span style="color:var(--accent)">v8</span></h1>
+<p class="sub">雙馬達 pattern + speed · 氣壓門檻映射 · 加速度變化量調變</p>
 
 <div class="warnbox" id="envWarn" style="display:none"></div>
 
@@ -140,10 +142,8 @@
     <div class="big" id="authBig">未連線</div>
     <div class="sm" id="authSm"></div>
   </div>
-  <div>
-    <label>裝置金鑰（8 bytes hex，存一次就好）</label>
-    <input type="text" id="keyInput" class="mono" placeholder="42 2B CC CD 45 7C 00 24">
-  </div>
+  <div><label>裝置金鑰（8 bytes hex，存一次就好）</label>
+    <input type="text" id="keyInput" class="mono" placeholder="42 2B CC CD 45 7C 00 24"></div>
   <div class="switch"><input type="checkbox" id="optAutoAuth" checked><span>連線後自動授權</span></div>
   <div class="btn-row" style="margin-top:6px">
     <button class="b-ok b-sm" id="btnAuth" disabled>立刻授權</button>
@@ -151,131 +151,159 @@
   </div>
 </section>
 
-<!-- 3 MOTORS -->
+<!-- 3 CONTROL -->
 <section>
   <h2>3 · 雙馬達 <span class="badge" id="motorBadge">—</span></h2>
-
-  <div>
-    <div class="slabel">
-      <span>通道 02</span>
-      <span><span class="mod" id="modA">—</span> &nbsp; <b><span id="lblA">0</span>%</b></span>
-    </div>
-    <input type="range" id="sA" min="0" max="100" step="1" value="0">
-    <div class="bar"><div id="barA"></div></div>
+  <div class="hint">
+    單一 frame 同時控制兩顆馬達：<br>
+    <span class="mono">0A 12 <b>&lt;pat1&gt; &lt;pat2&gt;</b> &lt;p1:2B&gt; &lt;p2:2B&gt; <b>&lt;spd1&gt; &lt;spd2&gt;</b></span><br>
+    <b>pat2 = 00 就是停止</b>（App 的停止封包就是 <span class="mono">0A 12 02 00</span>）。
   </div>
-  <div style="margin-top:12px">
-    <div class="slabel">
-      <span>通道 01</span>
-      <span><span class="mod" id="modB">—</span> &nbsp; <b><span id="lblB">0</span>%</b></span>
-    </div>
-    <input type="range" id="sB" min="0" max="100" step="1" value="0">
-    <div class="bar"><div id="barB"></div></div>
-  </div>
-  <div class="switch"><input type="checkbox" id="optLink"><span>兩顆連動</span></div>
 
-  <div class="btn-row" style="margin-top:6px">
-    <button class="b-ghost b-sm" data-preset="30">30%</button>
-    <button class="b-ghost b-sm" data-preset="50">50%</button>
-    <button class="b-ghost b-sm" data-preset="70">70%</button>
-    <button class="b-ghost b-sm" data-preset="100">100%</button>
+  <div class="motor">
+    <div class="hd">馬達 1 &nbsp;<span style="color:var(--muted);font-weight:400">pattern = byte2 · speed = byte8</span></div>
+    <div class="row">
+      <div><label>Pattern（byte2）</label><input type="number" id="pat1" value="2" min="0" max="255"></div>
+      <div style="flex:0 0 auto"><label>&nbsp;</label>
+        <div class="btn-row"><button class="b-ghost b-sm" data-patstep="pat1,-1">−</button><button class="b-ghost b-sm" data-patstep="pat1,1">+</button></div>
+      </div>
+    </div>
+    <div style="margin-top:9px">
+      <div class="slabel"><span>Speed</span><span><span class="mod" id="mod1"></span> &nbsp; <b><span id="lbl1">0</span></b></span></div>
+      <input type="range" id="s1" min="0" max="100" value="0">
+      <div class="bar"><div id="bar1"></div></div>
+    </div>
+    <div class="switch"><input type="checkbox" id="apply1" checked><span>套用調變</span></div>
+  </div>
+
+  <div class="motor">
+    <div class="hd">馬達 2 &nbsp;<span style="color:var(--muted);font-weight:400">pattern = byte3 · speed = byte9</span></div>
+    <div class="row">
+      <div><label>Pattern（byte3；0 = 停止）</label><input type="number" id="pat2" value="2" min="0" max="255"></div>
+      <div style="flex:0 0 auto"><label>&nbsp;</label>
+        <div class="btn-row"><button class="b-ghost b-sm" data-patstep="pat2,-1">−</button><button class="b-ghost b-sm" data-patstep="pat2,1">+</button></div>
+      </div>
+    </div>
+    <div style="margin-top:9px">
+      <div class="slabel"><span>Speed</span><span><span class="mod" id="mod2"></span> &nbsp; <b><span id="lbl2">0</span></b></span></div>
+      <input type="range" id="s2" min="0" max="100" value="0">
+      <div class="bar"><div id="bar2"></div></div>
+    </div>
+    <div class="switch"><input type="checkbox" id="apply2" checked><span>套用調變</span></div>
+  </div>
+
+  <div class="switch"><input type="checkbox" id="optLink"><span>兩顆 speed 連動</span></div>
+  <div class="btn-row" style="margin-top:4px">
+    <button class="b-ghost b-sm" data-preset="30">30</button>
+    <button class="b-ghost b-sm" data-preset="50">50</button>
+    <button class="b-ghost b-sm" data-preset="70">70</button>
+    <button class="b-ghost b-sm" data-preset="100">100</button>
     <button class="b-danger b-sm" id="btnStop" disabled>STOP</button>
   </div>
 
   <div class="frame" id="framePreview">—</div>
 
   <details>
-    <summary>進階：frame 欄位</summary>
+    <summary>進階：表頭與 p1 / p2</summary>
     <div class="row" style="margin-top:8px">
       <div><label>byte0</label><input type="text" id="fHdr0" class="mono" value="0A"></div>
       <div><label>byte1 子指令</label><input type="text" id="fHdr1" class="mono" value="12"></div>
-      <div><label>byte3 執行碼</label><input type="text" id="fRun" class="mono" value="02"></div>
     </div>
     <div class="row" style="margin-top:8px">
       <div><label>p1（byte4-5 u16BE）</label><input type="number" id="fP1" value="1000"></div>
       <div><label>p2（byte6-7 u16BE）</label><input type="number" id="fP2" value="1000"></div>
     </div>
-    <div class="row" style="margin-top:8px">
-      <div><label>byte8 偏移（App 行為 = 強度 + 35）</label><input type="number" id="fOff" value="35"></div>
-    </div>
-    <p class="note">App 實測：byte9 = 滑桿百分比，byte8 = byte9 + 35。</p>
+    <p class="note">App 兩個都用 1000（<span class="mono">03 E8</span>），作用未明。</p>
   </details>
 
   <div class="btn-row" style="margin-top:10px">
-    <button class="b-ghost b-sm" id="btnReplay" disabled>重播官方 App 序列（基準測試）</button>
+    <button class="b-ghost b-sm" id="btnReplay" disabled>重播官方 App 序列</button>
   </div>
 </section>
 
 <!-- 4 MODULATION -->
 <section>
-  <h2>4 · 感測器調變 <span class="badge" id="modBadge">關閉</span></h2>
-  <div class="hint">
-    以連線後擷取的基準值為零點。<b>氣壓升高 → 減弱</b>；<b>溫度升高 → 減弱、降低 → 增強</b>。
-    倍率是「每單位變化對應幾個百分點」。
-  </div>
+  <h2>4 · 調變 <span class="badge" id="modBadge">關閉</span></h2>
 
+  <h3>氣壓門檻映射（反向）</h3>
+  <div class="switch"><input type="checkbox" id="optModP"><span><b>啟用</b> — 氣壓低 → 強；氣壓高 → 弱</span></div>
   <div class="grid2">
-    <div class="stat"><div class="k">氣壓 mbar</div><div class="v" id="mPress">—</div><div class="r" id="mPressD">Δ —</div></div>
-    <div class="stat"><div class="k">溫度 °C</div><div class="v" id="mTemp">—</div><div class="r" id="mTempD">Δ —</div></div>
+    <div class="stat"><div class="k">目前氣壓 mbar</div><div class="v" id="mPress">—</div><div class="r" id="mPressMap">→ —</div></div>
+    <div class="stat"><div class="k">映射輸出</div><div class="v" id="mPressOut">—</div><div class="r">%</div></div>
   </div>
-
-  <div class="switch" style="margin-top:10px"><input type="checkbox" id="optModP"><span><b>氣壓調變</b>（升高 → 強度下降）</span></div>
-  <div class="row">
-    <div>
-      <div class="slabel"><span>倍率</span><b><span id="lblGp">20</span> %/mbar</b></div>
-      <input type="range" id="sGp" min="0" max="200" step="1" value="20">
-    </div>
-  </div>
-
-  <div class="switch" style="margin-top:10px"><input type="checkbox" id="optModT"><span><b>溫度調變</b>（升高 → 下降，降低 → 上升）</span></div>
-  <div class="row">
-    <div>
-      <div class="slabel"><span>倍率</span><b><span id="lblGt">10</span> %/°C</b></div>
-      <input type="range" id="sGt" min="0" max="100" step="1" value="10">
-    </div>
-  </div>
-
-  <div class="row" style="margin-top:10px">
-    <div>
-      <div class="slabel"><span>平滑</span><b><span id="lblSm">0.30</span></b></div>
-      <input type="range" id="sSm" min="1" max="100" step="1" value="30">
-    </div>
+  <div class="row" style="margin-top:9px">
+    <div><label>氣壓下限門檻 mbar（≤ 此值 → 強度上限）</label><input type="number" id="pLow" value="1015" step="0.1"></div>
+    <div style="flex:0 0 76px"><label>&nbsp;</label><button class="b-ghost b-sm" id="btnSetLow" style="width:100%" disabled>用目前</button></div>
   </div>
   <div class="row" style="margin-top:8px">
+    <div><label>氣壓上限門檻 mbar（≥ 此值 → 強度下限）</label><input type="number" id="pHigh" value="1020" step="0.1"></div>
+    <div style="flex:0 0 76px"><label>&nbsp;</label><button class="b-ghost b-sm" id="btnSetHigh" style="width:100%" disabled>用目前</button></div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div><label>強度上限 %（對應氣壓下限）</label><input type="number" id="iMax" value="100" min="0" max="100"></div>
+    <div><label>強度下限 %（對應氣壓上限）</label><input type="number" id="iMin" value="10" min="0" max="100"></div>
+  </div>
+  <p class="note">兩個門檻之間走線性反向分配。門檻請設在實際會出現的範圍內 ——
+  實測捏握大約造成 1～1.5 mbar 的變化，所以門檻間距抓 2～3 mbar 會比較有感。</p>
+
+  <h3>加速度變化量疊加</h3>
+  <div class="switch"><input type="checkbox" id="optModA"><span><b>啟用</b> — |ΔX|+|ΔY|+|ΔZ| 換算成百分點疊加</span></div>
+  <div class="grid2">
+    <div class="stat"><div class="k">變化量（平滑後）</div><div class="v" id="mAcc">—</div>
+      <div class="bar g"><div id="barAcc"></div></div></div>
+    <div class="stat"><div class="k">疊加量</div><div class="v" id="mAccOut">—</div><div class="r">百分點</div></div>
+  </div>
+  <div class="row" style="margin-top:9px">
+    <div><label>死區（低於此值視為靜止）</label><input type="number" id="aDead" value="6" min="0"></div>
+    <div><label>方向</label>
+      <select id="aDir"><option value="1">增強</option><option value="-1">減弱</option></select></div>
+  </div>
+  <div style="margin-top:9px">
+    <div class="slabel"><span>倍率</span><b><span id="lblAg">1.0</span> %/單位</b></div>
+    <input type="range" id="aGain" min="1" max="200" step="1" value="10">
+  </div>
+  <div class="row" style="margin-top:4px">
+    <div><label>疊加上限（百分點）</label><input type="number" id="aCap" value="50" min="0" max="100"></div>
+    <div><label>衰減平滑 0.01–1</label><input type="number" id="aSm" value="0.35" step="0.05" min="0.01" max="1"></div>
+  </div>
+  <p class="note">加速度計約 10 Hz。靜止時變化量約 3–10，晃動時可到 50–150。
+  死區用來吃掉靜止雜訊，倍率 1.0 %/單位大約是「晃一下加 30–50 個百分點」。</p>
+
+  <div class="row" style="margin-top:11px">
     <div><label>更新間隔 ms</label><input type="number" id="modMs" value="250" min="100" step="50"></div>
-    <div><label>下限 %</label><input type="number" id="modMin" value="0" min="0" max="100"></div>
-    <div><label>上限 %</label><input type="number" id="modMax" value="100" min="0" max="100"></div>
+    <div><label>氣壓平滑 0.01–1</label><input type="number" id="pSm" value="0.30" step="0.05" min="0.01" max="1"></div>
   </div>
-  <div class="btn-row" style="margin-top:9px">
-    <button class="b-warn b-sm" id="btnRebase" disabled>重設基準（現在的讀值當零點）</button>
-  </div>
-  <p class="note" id="baseNote">基準：尚未擷取</p>
+  <p class="note">speed 滑桿為 0 的馬達永遠不會被調變叫醒，STOP 一定有效。</p>
 </section>
 
 <!-- 5 SCANNER -->
 <section>
-  <h2>5 · 未知指令掃描 <span class="badge" id="scanBadge">—</span></h2>
+  <h2>5 · 位元組掃描 <span class="badge" id="scanBadge">—</span></h2>
   <div class="hint">
-    <b>燈光和震動模式的封包我沒有</b> —— 那次 btsnoop 只操作了強度滑桿，
-    所以 log 裡只有 <code>0A 12</code> 這一種 frame。<code>12</code> 很可能是子指令碼。<br>
-    這裡拿目前的 frame，指定掃第幾個位元組。<code>0xFFF2</code> 寫入不會斷線，掃起來安全。
+    <b>已知</b>：byte2 / byte3 是兩顆馬達的 pattern，byte8 / byte9 是兩顆的 speed。<br>
+    <b>未知</b>：燈光指令、byte1 子指令碼的其他值、p1 / p2 的作用。
+    掃 <b>byte1</b> 最有機會找到燈光。<code>0xFFF2</code> 寫入不會斷線。
   </div>
   <div class="row">
-    <div>
-      <label>掃描哪個位元組</label>
+    <div><label>掃描哪個位元組</label>
       <select id="scIdx">
-        <option value="1">byte1（子指令，最可能）</option>
-        <option value="3">byte3（執行碼）</option>
-        <option value="2">byte2（通道）</option>
-        <option value="8">byte8</option>
-        <option value="9">byte9</option>
-      </select>
-    </div>
+        <option value="1">byte1（子指令 — 燈光最可能在這）</option>
+        <option value="2">byte2（馬達1 pattern）</option>
+        <option value="3">byte3（馬達2 pattern）</option>
+        <option value="4">byte4（p1 高位）</option>
+        <option value="5">byte5（p1 低位）</option>
+        <option value="6">byte6（p2 高位）</option>
+        <option value="7">byte7（p2 低位）</option>
+        <option value="8">byte8（馬達1 speed）</option>
+        <option value="9">byte9（馬達2 speed）</option>
+      </select></div>
   </div>
   <div class="row" style="margin-top:8px">
     <div><label>從</label><input type="text" id="scFrom" class="mono" value="00"></div>
     <div><label>到</label><input type="text" id="scTo" class="mono" value="3F"></div>
     <div><label>停留 ms</label><input type="number" id="scDwell" value="900" min="200" step="100"></div>
   </div>
+  <div class="switch"><input type="checkbox" id="scStopBetween" checked><span>每個值之間送停止（比較容易分辨）</span></div>
   <div class="btn-row" style="margin-top:9px">
     <button class="b-primary" id="btnScan" disabled>開始掃描</button>
     <button class="b-danger" id="btnScanStop" disabled>停止</button>
@@ -283,10 +311,13 @@
   <div class="scannow" id="scanNow" style="display:none">
     正在送：<b id="scanLabel">—</b><br>
     <span class="note" id="scanProg"></span>
-    <button class="b-ok" id="btnScanMark" style="width:100%;margin-top:9px">有反應！記下這個值</button>
+    <div class="btn-row" style="margin-top:9px">
+      <button class="b-ok" id="btnScanMark" style="flex:2">有反應！記下</button>
+      <button class="b-ghost b-sm" id="btnScanHold" style="flex:1">暫停</button>
+    </div>
   </div>
   <table style="margin-top:10px">
-    <thead><tr><th style="width:70px">值</th><th>frame</th></tr></thead>
+    <thead><tr><th style="width:56px">byte</th><th style="width:56px">值</th><th>frame</th></tr></thead>
     <tbody id="scanHits"></tbody>
   </table>
 </section>
@@ -327,7 +358,8 @@
 <section>
   <h2>7 · Raw hex console</h2>
   <div><label>目標特徵</label><input type="text" id="rawUuid" value="fff2"></div>
-  <div style="margin-top:8px"><label>Hex bytes</label><input type="text" id="rawHex" class="mono" value="0A 12 02 02 03 E8 03 E8 41 1E"></div>
+  <div style="margin-top:8px"><label>Hex bytes</label>
+    <input type="text" id="rawHex" class="mono" value="0A 12 02 02 03 E8 03 E8 41 1E"></div>
   <div class="btn-row" style="margin-top:9px">
     <button class="b-primary b-sm" id="btnRawWrite" disabled>Write</button>
     <button class="b-ghost b-sm" id="btnRawRead" disabled>Read</button>
@@ -367,6 +399,7 @@ function parseHexList(s){
         .filter(function(n){ return !isNaN(n); });
 }
 function hb(id,d){ var n=parseInt(($(id).value||'').trim(),16); return isNaN(n)?d:(n&0xff); }
+function nv(id,d){ var n=parseFloat($(id).value); return isNaN(n)?d:n; }
 function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
 
 var logEl=$('log');
@@ -384,17 +417,16 @@ $('btnCopyLog').addEventListener('click',function(){
   document.body.removeChild(ta);
 });
 
-/* ---- protocol from btsnoop_hci.log ----
+/* ---- protocol (btsnoop + live scan findings) ----
    AUTH : 0x0A11 <- 8-byte static key ; device answers 01 00 00 00 00 00 00 00
-   MOTOR: 0xFFF2 <- 0A 12 <ch> 02 <p1:u16BE> <p2:u16BE> <a> <b>
-          stop     0A 12 <ch> 00
-   Channels 02 and 01 are the two motors (the app exercised each separately). */
+   FRAME: 0xFFF2 <- 0A 12 <pat1> <pat2> <p1:u16BE> <p2:u16BE> <spd1> <spd2>
+          stop     0A 12 <pat1> 00
+   One frame drives BOTH motors. byte2/3 = patterns, byte8/9 = speeds.        */
 var SVC_LELO=u16uuid(0xfff0), SVC_DEVINFO=u16uuid(0x180a), SVC_BATT=u16uuid(0x180f);
 var C_KEY=0x0a11, C_TX=0xfff2, C_A50=0x0a50;
 var WRITE_BLOCKED=[0x0a01,0x0a02,0x0a03];
 var QUIET_CHARS=[0x0a0a,0x0a0c,0x0a0d,0x2a19];
 var KEY_STORE='lelo_f1sv3_key';
-var CH_A=2, CH_B=1;
 var APP_SEQ=[[0x41,0x1e],[0x46,0x23],[0x4b,0x28],[0x50,0x2d],[0x55,0x32]];
 
 function isBlocked(c){ var s=shortOf(c.uuid); return s!==null&&WRITE_BLOCKED.indexOf(s)>=0; }
@@ -407,10 +439,8 @@ function optionalServices(){
 var S={
   device:null, server:null, chars:[], byShort:{}, byUuid:{}, notifyChars:[],
   connected:false, mutex:Promise.resolve(),
-  baseA:0, baseB:0,          // slider values (user intent)
-  outA:0,  outB:0,           // last values actually written
-  press:null, temp:null,     // smoothed sensor values
-  basePress:null, baseTemp:null,
+  base1:0, base2:0, out1:-1, out2:-1, outPat:'',
+  press:null, accEnergy:0, accPrev:null, accX:0, accY:0, accZ:0,
   pollTimer:null, modTimer:null, lastWrite:null, connectedAt:0,
   key:null, authed:false, authSent:false, busySeq:false,
   scan:null, reconnecting:false, waiters:[]
@@ -431,7 +461,7 @@ function props(c){
 }
 function enableAll(on){
   ['btnDisconnect','btnReRead','btnStop','btnPoll','btnDump','btnRawWrite','btnRawRead',
-   'btnReplay','btnScan','btnRebase','btnAuth'].forEach(function(i){ $(i).disabled=!on; });
+   'btnReplay','btnScan','btnAuth','btnSetLow','btnSetHigh'].forEach(function(i){ $(i).disabled=!on; });
 }
 (function(){
   var m=[];
@@ -445,8 +475,7 @@ $('keyInput').addEventListener('change',function(){
   var b=parseHexList(this.value);
   if(b.length===8){
     try{ localStorage.setItem(KEY_STORE,hexArr(b)); }catch(e){}
-    this.value=hexArr(b);
-    log('金鑰已儲存：'+hexArr(b));
+    this.value=hexArr(b); log('金鑰已儲存：'+hexArr(b));
   } else if(this.value.trim()) log('金鑰必須是 8 個位元組，目前 '+b.length+' 個');
 });
 function storedKey(){ var b=parseHexList($('keyInput').value); return b.length===8?b:null; }
@@ -486,8 +515,8 @@ function pickAndConnect(){
 function openLink(){
   var t0=Date.now();
   setBadge($('connBadge'),'Connecting…','busy');
-  S.authSent=false; S.basePress=null; S.baseTemp=null; S.press=null; S.temp=null;
-  $('baseNote').textContent='基準：尚未擷取';
+  S.authSent=false; S.press=null; S.accPrev=null; S.accEnergy=0;
+  S.out1=-1; S.out2=-1; S.outPat='';
   return withTimeout(S.device.gatt.connect(),30000,'gatt.connect').then(function(srv){
     S.server=srv; S.connectedAt=Date.now();
     log('gatt.connect ok (+'+(Date.now()-t0)+'ms)');
@@ -611,118 +640,143 @@ function onKeyValue(dv){
 }
 
 /* ==================== FRAME ==================== */
-function frameRun(ch,pct){
-  var p1=clamp(+$('fP1').value||1000,0,65535);
-  var p2=clamp(+$('fP2').value||1000,0,65535);
-  var off=+$('fOff').value||0;
-  var b=clamp(Math.round(pct),0,255);
-  var a=clamp(b+off,0,255);
-  return [hb('fHdr0',0x0a), hb('fHdr1',0x12), ch&0xff, hb('fRun',0x02),
-          (p1>>8)&0xff, p1&0xff, (p2>>8)&0xff, p2&0xff, a, b];
+function frameRun(pat1,pat2,spd1,spd2){
+  var p1=clamp(Math.round(nv('fP1',1000)),0,65535);
+  var p2=clamp(Math.round(nv('fP2',1000)),0,65535);
+  return [hb('fHdr0',0x0a), hb('fHdr1',0x12), pat1&0xff, pat2&0xff,
+          (p1>>8)&0xff, p1&0xff, (p2>>8)&0xff, p2&0xff,
+          clamp(Math.round(spd1),0,255), clamp(Math.round(spd2),0,255)];
 }
-function frameStop(ch){ return [hb('fHdr0',0x0a), hb('fHdr1',0x12), ch&0xff, 0x00]; }
+function frameStop(pat1){ return [hb('fHdr0',0x0a), hb('fHdr1',0x12), pat1&0xff, 0x00]; }
+function pat1v(){ return clamp(Math.round(nv('pat1',2)),0,255); }
+function pat2v(){ return clamp(Math.round(nv('pat2',2)),0,255); }
 
 /* ==================== MODULATION ==================== */
-function gainP(){ return +$('sGp').value||0; }
-function gainT(){ return +$('sGt').value||0; }
-function modActive(){ return $('optModP').checked||$('optModT').checked; }
+function modActive(){ return $('optModP').checked||$('optModA').checked; }
 
-function modulate(base){
-  if(base<=0) return 0;              // a stopped motor stays stopped
-  var v=base;
-  if($('optModP').checked && S.press!==null && S.basePress!==null)
-    v -= gainP()*(S.press-S.basePress);
-  if($('optModT').checked && S.temp!==null && S.baseTemp!==null)
-    v -= gainT()*(S.temp-S.baseTemp);
-  var lo=clamp(+$('modMin').value||0,0,100), hi=clamp(+$('modMax').value||100,0,100);
-  if(hi<lo){ var t=lo; lo=hi; hi=t; }
-  return Math.round(clamp(v,lo,hi));
+/* pressure → intensity, inverse piecewise-linear between the two thresholds */
+function mapPressure(p){
+  var lo=nv('pLow',1015), hi=nv('pHigh',1020);
+  var iMax=clamp(nv('iMax',100),0,100), iMin=clamp(nv('iMin',10),0,100);
+  if(hi<=lo) return iMax;
+  if(p<=lo) return iMax;
+  if(p>=hi) return iMin;
+  var t=(p-lo)/(hi-lo);
+  return iMax+(iMin-iMax)*t;
 }
-function refreshModUI(){
+function accelBoost(){
+  var dead=nv('aDead',6);
+  var gain=(+$('aGain').value||10)/10;      /* slider 1..200 → 0.1..20 %/unit */
+  var cap=clamp(nv('aCap',50),0,100);
+  var dir=parseInt($('aDir').value,10)||1;
+  var e=Math.max(0,S.accEnergy-dead);
+  return dir*Math.min(cap,e*gain);
+}
+function modulate(base,apply){
+  if(base<=0) return 0;                     /* a stopped motor stays stopped */
+  if(!apply||!modActive()) return clamp(Math.round(base),0,100);
+  var v=base;
+  if($('optModP').checked&&S.press!==null) v=mapPressure(S.press);
+  if($('optModA').checked) v+=accelBoost();
+  return clamp(Math.round(v),0,100);
+}
+function refreshUI(){
   var on=modActive();
   setBadge($('modBadge'), on?'啟用':'關閉', on?'on':'');
-  $('lblGp').textContent=gainP();
-  $('lblGt').textContent=gainT();
-  $('lblSm').textContent=((+$('sSm').value||30)/100).toFixed(2);
-  var a=modulate(S.baseA), b=modulate(S.baseB);
-  $('modA').textContent = (on&&S.baseA>0) ? ('→ '+a+'%') : '';
-  $('modB').textContent = (on&&S.baseB>0) ? ('→ '+b+'%') : '';
-  $('barA').style.width=a+'%';
-  $('barB').style.width=b+'%';
-  $('framePreview').textContent =
-    'CH02  '+hexArr(a>0?frameRun(CH_A,a):frameStop(CH_A))+'\n'+
-    'CH01  '+hexArr(b>0?frameRun(CH_B,b):frameStop(CH_B));
-  if(S.basePress!==null)
-    $('baseNote').textContent='基準：氣壓 '+S.basePress.toFixed(2)+' mbar · 溫度 '+S.baseTemp.toFixed(2)+' °C';
+  $('lblAg').textContent=((+$('aGain').value||10)/10).toFixed(1);
+
+  var o1=modulate(S.base1,$('apply1').checked);
+  var o2=modulate(S.base2,$('apply2').checked);
+  $('mod1').textContent=(on&&$('apply1').checked&&S.base1>0)?('→ '+o1):'';
+  $('mod2').textContent=(on&&$('apply2').checked&&S.base2>0)?('→ '+o2):'';
+  $('bar1').style.width=o1+'%';
+  $('bar2').style.width=o2+'%';
+
+  if(S.press!==null){
+    $('mPress').textContent=S.press.toFixed(2);
+    $('mPressOut').textContent=Math.round(mapPressure(S.press));
+    var lo=nv('pLow',1015), hi=nv('pHigh',1020);
+    $('mPressMap').textContent = S.press<=lo?'≤ 下限 → 上限強度'
+                               : S.press>=hi?'≥ 上限 → 下限強度'
+                               : '區間內 '+(((S.press-lo)/(hi-lo))*100).toFixed(0)+'%';
+  }
+  $('mAcc').textContent=S.accEnergy.toFixed(1);
+  $('barAcc').style.width=clamp(S.accEnergy/1.5,0,100)+'%';
+  $('mAccOut').textContent=(accelBoost()>=0?'+':'')+accelBoost().toFixed(0);
+
+  var f = (o1>0||o2>0) ? frameRun(pat1v(),pat2v(),o1,o2) : frameStop(pat1v());
+  $('framePreview').textContent=hexArr(f);
 }
 function startModLoop(){
   if(S.modTimer) clearInterval(S.modTimer);
-  var ms=clamp(+$('modMs').value||250,100,5000);
+  var ms=clamp(Math.round(nv('modMs',250)),100,5000);
   S.modTimer=setInterval(function(){
     if(!S.connected) return;
-    refreshModUI();
-    if(!modActive()) return;
-    pushIfChanged();
+    refreshUI();
+    if(modActive()) pushIfChanged();
   },ms);
 }
-['modMs'].forEach(function(id){ $(id).addEventListener('change',startModLoop); });
-['optModP','optModT','sGp','sGt','sSm','modMin','modMax'].forEach(function(id){
-  $(id).addEventListener('input',refreshModUI);
-  $(id).addEventListener('change',refreshModUI);
+$('modMs').addEventListener('change',startModLoop);
+['optModP','optModA','pLow','pHigh','iMax','iMin','aDead','aGain','aCap','aDir','aSm','pSm',
+ 'apply1','apply2','pat1','pat2','fHdr0','fHdr1','fP1','fP2'].forEach(function(id){
+  $(id).addEventListener('input',refreshUI);
+  $(id).addEventListener('change',refreshUI);
 });
-$('btnRebase').addEventListener('click',function(){
-  if(S.press===null){ log('還沒有感測器讀值'); return; }
-  S.basePress=S.press; S.baseTemp=S.temp;
-  log('基準重設：氣壓 '+S.basePress.toFixed(2)+' mbar，溫度 '+S.baseTemp.toFixed(2)+' °C');
-  refreshModUI();
+$('btnSetLow').addEventListener('click',function(){
+  if(S.press===null) return;
+  $('pLow').value=S.press.toFixed(2); refreshUI();
+  log('氣壓下限門檻 = '+S.press.toFixed(2)+' mbar');
+});
+$('btnSetHigh').addEventListener('click',function(){
+  if(S.press===null) return;
+  $('pHigh').value=S.press.toFixed(2); refreshUI();
+  log('氣壓上限門檻 = '+S.press.toFixed(2)+' mbar');
 });
 
 /* ==================== TX ==================== */
 var txBusy=false, txDirty=false;
 function pushIfChanged(){
-  var a=modulate(S.baseA), b=modulate(S.baseB);
-  if(a!==S.outA||b!==S.outB){ txDirty=true; pump(); }
+  var o1=modulate(S.base1,$('apply1').checked);
+  var o2=modulate(S.base2,$('apply2').checked);
+  var pk=pat1v()+'/'+pat2v();
+  if(o1!==S.out1||o2!==S.out2||pk!==S.outPat){ txDirty=true; pump(); }
 }
 function schedule(){ txDirty=true; pump(); }
 function pump(){
   if(txBusy||!txDirty||!S.connected||S.busySeq) return;
   var c=txChar(); if(!c) return;
   txDirty=false; txBusy=true;
-  var a=modulate(S.baseA), b=modulate(S.baseB);
-  var fa = a>0 ? frameRun(CH_A,a) : frameStop(CH_A);
-  var fb = b>0 ? frameRun(CH_B,b) : frameStop(CH_B);
-  var jobs=[];
-  if(a!==S.outA) jobs.push([fa,'CH02',a]);
-  if(b!==S.outB) jobs.push([fb,'CH01',b]);
-  S.outA=a; S.outB=b;
-  var chain=Promise.resolve();
-  jobs.forEach(function(j){
-    chain=chain.then(function(){
-      return writeCh(c,j[0]).then(function(){
-        if(!$('optQuiet').checked||!modActive())
-          log('TX '+j[1]+' '+j[2]+'% <- '+hexArr(j[0])+(S.authed?'':'  [未授權！]'));
-      },function(e){ log('TX failed: '+e.message); });
-    });
-  });
-  chain.then(function(){ txBusy=false; setTimeout(pump,40); });
+  var o1=modulate(S.base1,$('apply1').checked);
+  var o2=modulate(S.base2,$('apply2').checked);
+  S.out1=o1; S.out2=o2; S.outPat=pat1v()+'/'+pat2v();
+  var f=(o1>0||o2>0)?frameRun(pat1v(),pat2v(),o1,o2):frameStop(pat1v());
+  writeCh(c,f).then(function(){
+    if(!$('optQuiet').checked||!modActive())
+      log('TX <- '+hexArr(f)+'   (m1='+o1+' m2='+o2+')'+(S.authed?'':'  [未授權！]'));
+  },function(e){ log('TX failed: '+e.message); })
+  .then(function(){ txBusy=false; setTimeout(pump,40); });
 }
-function setA(n){ S.baseA=clamp(n|0,0,100); $('sA').value=S.baseA; $('lblA').textContent=S.baseA; refreshModUI(); }
-function setB(n){ S.baseB=clamp(n|0,0,100); $('sB').value=S.baseB; $('lblB').textContent=S.baseB; refreshModUI(); }
-$('sA').addEventListener('input',function(){ setA(+this.value); if($('optLink').checked) setB(S.baseA); schedule(); });
-$('sB').addEventListener('input',function(){ setB(+this.value); if($('optLink').checked) setA(S.baseB); schedule(); });
+function set1(n){ S.base1=clamp(n|0,0,100); $('s1').value=S.base1; $('lbl1').textContent=S.base1; refreshUI(); }
+function set2(n){ S.base2=clamp(n|0,0,100); $('s2').value=S.base2; $('lbl2').textContent=S.base2; refreshUI(); }
+$('s1').addEventListener('input',function(){ set1(+this.value); if($('optLink').checked) set2(S.base1); schedule(); });
+$('s2').addEventListener('input',function(){ set2(+this.value); if($('optLink').checked) set1(S.base2); schedule(); });
 Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'),function(btn){
   btn.addEventListener('click',function(){
     var n=+btn.getAttribute('data-preset');
-    setA(n); setB(n); schedule();
+    set1(n); set2(n); schedule();
+  });
+});
+Array.prototype.forEach.call(document.querySelectorAll('[data-patstep]'),function(btn){
+  btn.addEventListener('click',function(){
+    var p=btn.getAttribute('data-patstep').split(','), el=$(p[0]);
+    el.value=clamp((parseInt(el.value,10)||0)+parseInt(p[1],10),0,255);
+    refreshUI(); schedule();
+    log('pattern '+p[0]+' = '+el.value);
   });
 });
 $('btnStop').addEventListener('click',function(){
   stopScan(); S.busySeq=false;
-  setA(0); setB(0); schedule();
-});
-['fHdr0','fHdr1','fRun','fP1','fP2','fOff'].forEach(function(id){
-  $(id).addEventListener('input',refreshModUI);
-  $(id).addEventListener('change',refreshModUI);
+  set1(0); set2(0); schedule();
 });
 
 /* replay the captured app sequence */
@@ -730,49 +784,55 @@ $('btnReplay').addEventListener('click',function(){
   var c=txChar(); if(!c){ log('0xFFF2 不存在'); return; }
   if(!S.authed) log('注意：目前未授權。');
   S.busySeq=true;
-  log('=== 重播官方序列（通道 02）===');
+  log('=== 重播官方序列（pat1=02 pat2=02）===');
   var chain=Promise.resolve();
-  var steps=APP_SEQ.slice();
-  steps.push(null);
+  var steps=APP_SEQ.slice(); steps.push(null);
   APP_SEQ.slice(0,4).reverse().forEach(function(x){ steps.push(x); });
   steps.forEach(function(ab){
     chain=chain.then(function(){
       if(!S.busySeq) return;
       if(ab===null){ log('   … 維持 5 秒 …'); return delay(5000); }
-      var p1=clamp(+$('fP1').value||1000,0,65535), p2=clamp(+$('fP2').value||1000,0,65535);
-      var f=[0x0A,0x12,CH_A,0x02,(p1>>8)&0xff,p1&0xff,(p2>>8)&0xff,p2&0xff,ab[0],ab[1]];
+      var f=[0x0A,0x12,0x02,0x02,0x03,0xE8,0x03,0xE8,ab[0],ab[1]];
       return writeCh(c,f).then(function(){ log('   TX <- '+hexArr(f)); },function(e){ log('   err: '+e.message); })
              .then(function(){ return delay(450); });
     });
   });
   chain.then(function(){
     if(!S.busySeq) return;
-    return writeCh(c,frameStop(CH_A)).then(function(){ log('   TX <- '+hexArr(frameStop(CH_A))+'  (stop)'); },function(){});
-  }).then(function(){ S.busySeq=false; log('=== 重播結束 ==='); setA(0); setB(0); });
+    return writeCh(c,[0x0A,0x12,0x02,0x00]).then(function(){ log('   TX <- 0A 12 02 00  (stop)'); },function(){});
+  }).then(function(){ S.busySeq=false; log('=== 重播結束 ==='); set1(0); set2(0); });
 });
 
 /* ==================== BYTE SCANNER ==================== */
 $('btnScan').addEventListener('click',startScan);
 $('btnScanStop').addEventListener('click',stopScan);
+$('btnScanHold').addEventListener('click',function(){
+  if(!S.scan) return;
+  S.scan.hold=!S.scan.hold;
+  $('btnScanHold').textContent=S.scan.hold?'繼續':'暫停';
+  log(S.scan.hold?'掃描暫停（維持目前 frame）':'掃描繼續');
+  if(!S.scan.hold) scanStep();
+});
 $('btnScanMark').addEventListener('click',function(){
   if(!S.scan) return;
-  var f=S.scan.lastFrame, v=S.scan.v;
   var tr=document.createElement('tr');
-  var a=document.createElement('td'); a.textContent='0x'+pad2(v).toUpperCase();
-  var b=document.createElement('td'); b.className='val'; b.textContent=hexArr(f);
-  tr.appendChild(a); tr.appendChild(b);
+  var a=document.createElement('td'); a.textContent='byte'+S.scan.idx;
+  var b=document.createElement('td'); b.textContent='0x'+pad2(S.scan.v).toUpperCase();
+  var d=document.createElement('td'); d.className='val'; d.textContent=hexArr(S.scan.lastFrame);
+  tr.appendChild(a); tr.appendChild(b); tr.appendChild(d);
   $('scanHits').appendChild(tr);
-  log('*** 命中：byte'+S.scan.idx+' = 0x'+pad2(v).toUpperCase()+'   frame '+hexArr(f)+' ***');
+  log('*** 命中 byte'+S.scan.idx+' = 0x'+pad2(S.scan.v).toUpperCase()+'  '+hexArr(S.scan.lastFrame)+' ***');
 });
 function startScan(){
   if(!S.connected) return;
   var from=parseInt(($('scFrom').value||'0').replace(/^0x/i,''),16)&0xff;
   var to  =parseInt(($('scTo').value||'FF').replace(/^0x/i,''),16)&0xff;
   if(to<from){ var t=from; from=to; to=t; }
-  S.scan={ idx:parseInt($('scIdx').value,10), v:from, to:to, stop:false, lastFrame:[] };
+  S.scan={ idx:parseInt($('scIdx').value,10), v:from, to:to, stop:false, hold:false, lastFrame:[] };
   S.busySeq=true;
   $('scanNow').style.display='block';
   $('btnScan').disabled=true; $('btnScanStop').disabled=false;
+  $('btnScanHold').textContent='暫停';
   log('=== 掃描 byte'+S.scan.idx+' 0x'+pad2(from).toUpperCase()+'–0x'+pad2(to).toUpperCase()+' ===');
   scanStep();
 }
@@ -784,26 +844,27 @@ function stopScan(){
 }
 function scanStep(){
   var s=S.scan;
-  if(!s||s.stop||!S.connected) return;
+  if(!s||s.stop||s.hold||!S.connected) return;
   if(s.v>s.to){ log('=== 掃描完成 ==='); stopScan(); return; }
   var c=txChar(); if(!c){ stopScan(); return; }
-  var f=frameRun(CH_A, S.baseA>0?S.baseA:60);
+  var b1=S.base1>0?S.base1:60, b2=S.base2>0?S.base2:60;
+  var f=frameRun(pat1v(),pat2v(),b1,b2);
   if(s.idx<f.length) f[s.idx]=s.v;
   s.lastFrame=f.slice();
   $('scanLabel').textContent=hexArr(f);
   $('scanProg').textContent='byte'+s.idx+' = 0x'+pad2(s.v).toUpperCase()+'  /  0x'+pad2(s.to).toUpperCase();
-  var dwell=clamp(+$('scDwell').value||900,200,10000);
+  var dwell=clamp(Math.round(nv('scDwell',900)),200,10000);
   writeCh(c,f).then(function(){ log('scan byte'+s.idx+'=0x'+pad2(s.v).toUpperCase()+' <- '+hexArr(f)); },
                     function(e){ log('scan err: '+e.message); })
     .then(function(){ return delay(dwell); })
     .then(function(){
-      if(!S.scan||S.scan.stop) return;
-      return writeCh(c,frameStop(CH_A)).catch(function(){}).then(function(){ return delay(250); });
+      if(!S.scan||S.scan.stop||S.scan.hold) return;
+      if($('scStopBetween').checked)
+        return writeCh(c,frameStop(pat1v())).catch(function(){}).then(function(){ return delay(280); });
     })
     .then(function(){
-      if(!S.scan||S.scan.stop) return;
-      S.scan.v++;
-      scanStep();
+      if(!S.scan||S.scan.stop||S.scan.hold) return;
+      S.scan.v++; scanStep();
     });
 }
 
@@ -818,34 +879,29 @@ function flash(id){
   el.classList.add('live'); clearTimeout(el._ft);
   el._ft=setTimeout(function(){ el.classList.remove('live'); },350);
 }
-function ema(prev,val,alpha){ return prev===null ? val : prev+alpha*(val-prev); }
+function ema(prev,val,a){ return prev===null?val:prev+a*(val-prev); }
 function applySensor(c,dv){
   var sh=shortOf(c.uuid);
   if(sh===0x0a0d){
     var d=decode0A0D(dv);
     if(d){
-      var alpha=clamp((+$('sSm').value||30)/100,0.01,1);
-      S.press=ema(S.press,d.press,alpha);
-      S.temp =ema(S.temp, d.temp, alpha);
-      if(S.basePress===null && S.connected && (Date.now()-S.connectedAt)>4000){
-        S.basePress=S.press; S.baseTemp=S.temp;
-        log('自動擷取基準：氣壓 '+S.basePress.toFixed(2)+' mbar，溫度 '+S.baseTemp.toFixed(2)+' °C');
-      }
+      S.press=ema(S.press,d.press,clamp(nv('pSm',0.3),0.01,1));
       $('vTemp').textContent=d.temp.toFixed(2);
       $('vPress').textContent=d.press.toFixed(2);
-      $('mTemp').textContent=S.temp.toFixed(2);
-      $('mPress').textContent=S.press.toFixed(2);
-      $('mPressD').textContent='Δ '+(S.basePress===null?'—':(S.press-S.basePress>=0?'+':'')+(S.press-S.basePress).toFixed(2));
-      $('mTempD').textContent ='Δ '+(S.baseTemp===null?'—':(S.temp-S.baseTemp>=0?'+':'')+(S.temp-S.baseTemp).toFixed(2));
       flash('cTemp'); flash('cPress');
     }
   } else if(sh===0x0a0a){
     if(dv.byteLength>=2){ $('vVolt').textContent=dv.getUint16(0,false); flash('cVolt'); }
   } else if(sh===0x0a0c){
     if(dv.byteLength>=6){
-      $('vAx').textContent=dv.getInt16(0,false);
-      $('vAy').textContent=dv.getInt16(2,false);
-      $('vAz').textContent=dv.getInt16(4,false);
+      var x=dv.getInt16(0,false), y=dv.getInt16(2,false), z=dv.getInt16(4,false);
+      S.accX=x; S.accY=y; S.accZ=z;
+      if(S.accPrev){
+        var d3=Math.abs(x-S.accPrev[0])+Math.abs(y-S.accPrev[1])+Math.abs(z-S.accPrev[2]);
+        S.accEnergy=S.accEnergy+clamp(nv('aSm',0.35),0.01,1)*(d3-S.accEnergy);
+      }
+      S.accPrev=[x,y,z];
+      $('vAx').textContent=x; $('vAy').textContent=y; $('vAz').textContent=z;
       flash('cAx'); flash('cAy'); flash('cAz');
     }
     if(dv.byteLength>=7){ $('vA6').textContent=dv.getUint8(6); flash('cA6'); }
@@ -974,8 +1030,9 @@ $('btnRawRead').addEventListener('click',function(){
 });
 
 setAuthState(0,'未連線','');
-refreshModUI();
-log('v7 ready — 雙馬達（通道 02 / 01）、感測器調變、位元組掃描。');
+refreshUI();
+log('v8 ready — 單一 frame 控制兩顆馬達：0A 12 <pat1> <pat2> <p1> <p2> <spd1> <spd2>');
+log('氣壓門檻反向映射 + 加速度變化量疊加。溫度調變已移除。');
 </script>
 </body>
 </html>
