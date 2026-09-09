@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>LELO F1S V3 — Direct BLE Control v6</title>
+<title>LELO F1S V3 — Direct BLE Control v7</title>
 <style>
   :root{
     --bg:#0b0b12; --panel:#15151f; --panel2:#1d1d2a; --border:#2c2c3d;
@@ -23,6 +23,7 @@
   section{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:13px; margin-bottom:12px; }
   h2{ font-size:14px; margin:0 0 10px; letter-spacing:.3px; display:flex; align-items:center; gap:8px; }
   h2 .badge{ margin-left:auto; }
+  h3{ font-size:12px; margin:16px 0 7px; color:var(--muted); letter-spacing:.4px; text-transform:uppercase; }
   label{ display:block; font-size:11px; color:var(--muted); margin-bottom:3px; }
   input[type=text], input[type=number], select{
     width:100%; background:#0f0f17; color:var(--text);
@@ -45,7 +46,7 @@
   .b-warn{ background:var(--warn); color:#2a1a00; }
   .b-ghost{ background:var(--panel2); border:1px solid var(--border); color:var(--text); }
   .b-sm{ padding:6px 10px; font-size:12px; }
-  .b-big{ padding:16px; font-size:16px; }
+  .b-big{ padding:15px; font-size:15px; }
   .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
   .grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
   .row{ display:flex; gap:9px; align-items:flex-end; }
@@ -57,13 +58,14 @@
   .switch{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); margin:6px 0; }
   .switch input{ width:17px; height:17px; accent-color:var(--accent); flex:none; }
   input[type=range]{ width:100%; accent-color:var(--accent); height:34px; }
-  .slabel{ display:flex; justify-content:space-between; font-size:11px; color:var(--muted); }
+  .slabel{ display:flex; justify-content:space-between; font-size:11px; color:var(--muted); align-items:baseline; }
   .slabel b{ color:var(--text); font-size:15px; }
+  .slabel .mod{ color:var(--ok); font-size:12px; font-family:ui-monospace,Menlo,Consolas,monospace; }
   .note{ font-size:11px; color:var(--muted); margin-top:8px; }
   .warnbox{ background:#2a1a00; border:1px solid var(--warn); color:#ffd9a0; border-radius:10px; padding:9px 11px; font-size:12px; margin-bottom:10px; }
   .hint{ background:#101a2a; border:1px solid var(--accent2); color:#c9d4ff; border-radius:10px; padding:9px 11px; font-size:12px; margin:9px 0; }
-  .auth{ border-radius:12px; padding:14px; margin:10px 0; text-align:center; border:2px solid; }
-  .auth .big{ font-size:19px; font-weight:800; letter-spacing:.5px; }
+  .auth{ border-radius:12px; padding:13px; margin:10px 0; text-align:center; border:2px solid; }
+  .auth .big{ font-size:18px; font-weight:800; letter-spacing:.5px; }
   .auth .sm{ font-size:12px; margin-top:4px; opacity:.85;
              font-family:ui-monospace,Menlo,Consolas,monospace; word-break:break-all; }
   .auth.s0{ background:#1d1d2a; border-color:var(--border); color:var(--muted); }
@@ -73,7 +75,7 @@
   .mono{ font-family:ui-monospace,Menlo,Consolas,monospace; }
   .frame{ background:#08080e; border:1px solid var(--border); border-radius:9px;
           padding:9px; margin-top:9px; font-family:ui-monospace,Menlo,Consolas,monospace;
-          font-size:13px; color:var(--ok); word-break:break-all; }
+          font-size:12px; color:var(--ok); word-break:break-all; }
   .stat{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:8px 10px; overflow:hidden; }
   .stat .k{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -81,8 +83,10 @@
   .stat .r{ font-size:10px; color:var(--muted); font-family:ui-monospace,Menlo,Consolas,monospace;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .stat.live{ border-color:var(--ok); }
+  .bar{ height:6px; background:#0f0f17; border-radius:4px; overflow:hidden; margin-top:5px; }
+  .bar > div{ height:100%; background:var(--accent); width:0%; transition:width .12s linear; }
   #log{ background:#08080e; border:1px solid var(--border); border-radius:10px;
-        padding:9px; height:210px; overflow:auto; font-size:11px; line-height:1.45;
+        padding:9px; height:200px; overflow:auto; font-size:11px; line-height:1.45;
         font-family:ui-monospace,Menlo,Consolas,monospace; white-space:pre-wrap; word-break:break-word; }
   table{ width:100%; border-collapse:collapse; font-size:11px; }
   th{ text-align:left; color:var(--muted); font-weight:600; font-size:10px;
@@ -94,14 +98,17 @@
   td.n{ color:var(--muted); text-align:right; white-space:nowrap; }
   details{ margin-top:10px; }
   summary{ cursor:pointer; font-size:12px; color:var(--muted); padding:6px 0; }
+  .scannow{ background:var(--panel2); border:1px solid var(--accent2); border-radius:10px;
+            padding:10px; margin-top:9px; font-size:13px; }
+  .scannow b{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:15px; color:var(--accent); }
   .hide{ display:none !important; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-<h1>LELO F1S V3 — Direct BLE Control <span style="color:var(--accent)">v6</span></h1>
-<p class="sub">協定由 btsnoop HCI log 還原 · 官方 App 封包重現</p>
+<h1>LELO F1S V3 — Direct BLE Control <span style="color:var(--accent)">v7</span></h1>
+<p class="sub">雙馬達 · 感測器調變 · 未知指令掃描</p>
 
 <div class="warnbox" id="envWarn" style="display:none"></div>
 
@@ -133,12 +140,8 @@
     <div class="big" id="authBig">未連線</div>
     <div class="sm" id="authSm"></div>
   </div>
-  <div class="hint">
-    金鑰是<b>這台裝置的固定值</b>（官方 App 也是直接寫死的那組，不是每次隨機挑戰）。
-    存進下面的欄位之後，以後連線就會自動送出，<b>不必再按電源鍵</b>。
-  </div>
   <div>
-    <label>裝置金鑰（8 bytes hex）—— 空白時改用「按電源鍵讓 0x0A11 吐出來」</label>
+    <label>裝置金鑰（8 bytes hex，存一次就好）</label>
     <input type="text" id="keyInput" class="mono" placeholder="42 2B CC CD 45 7C 00 24">
   </div>
   <div class="switch"><input type="checkbox" id="optAutoAuth" checked><span>連線後自動授權</span></div>
@@ -148,18 +151,29 @@
   </div>
 </section>
 
-<!-- 3 CONTROL -->
+<!-- 3 MOTORS -->
 <section>
-  <h2>3 · 控制 <span class="badge" id="motorBadge">—</span></h2>
+  <h2>3 · 雙馬達 <span class="badge" id="motorBadge">—</span></h2>
 
-  <button class="b-ok b-big" id="btnReplay" style="width:100%" disabled>▶  重播官方 App 的完整序列</button>
-  <p class="note" style="margin-top:6px">30%→50% 爬升、維持、再降回停止 —— 逐字節重現 btsnoop 抓到的封包。這是已知能動的基準測試。</p>
-
-  <div style="margin-top:14px">
-    <div class="slabel"><span>強度</span><b><span id="lblPow">0</span>%</b></div>
-    <input type="range" id="sPow" min="0" max="100" step="5" value="0">
+  <div>
+    <div class="slabel">
+      <span>通道 02</span>
+      <span><span class="mod" id="modA">—</span> &nbsp; <b><span id="lblA">0</span>%</b></span>
+    </div>
+    <input type="range" id="sA" min="0" max="100" step="1" value="0">
+    <div class="bar"><div id="barA"></div></div>
   </div>
-  <div class="btn-row" style="margin-top:4px">
+  <div style="margin-top:12px">
+    <div class="slabel">
+      <span>通道 01</span>
+      <span><span class="mod" id="modB">—</span> &nbsp; <b><span id="lblB">0</span>%</b></span>
+    </div>
+    <input type="range" id="sB" min="0" max="100" step="1" value="0">
+    <div class="bar"><div id="barB"></div></div>
+  </div>
+  <div class="switch"><input type="checkbox" id="optLink"><span>兩顆連動</span></div>
+
+  <div class="btn-row" style="margin-top:6px">
     <button class="b-ghost b-sm" data-preset="30">30%</button>
     <button class="b-ghost b-sm" data-preset="50">50%</button>
     <button class="b-ghost b-sm" data-preset="70">70%</button>
@@ -167,44 +181,119 @@
     <button class="b-danger b-sm" id="btnStop" disabled>STOP</button>
   </div>
 
-  <div class="row" style="margin-top:11px">
+  <div class="frame" id="framePreview">—</div>
+
+  <details>
+    <summary>進階：frame 欄位</summary>
+    <div class="row" style="margin-top:8px">
+      <div><label>byte0</label><input type="text" id="fHdr0" class="mono" value="0A"></div>
+      <div><label>byte1 子指令</label><input type="text" id="fHdr1" class="mono" value="12"></div>
+      <div><label>byte3 執行碼</label><input type="text" id="fRun" class="mono" value="02"></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div><label>p1（byte4-5 u16BE）</label><input type="number" id="fP1" value="1000"></div>
+      <div><label>p2（byte6-7 u16BE）</label><input type="number" id="fP2" value="1000"></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div><label>byte8 偏移（App 行為 = 強度 + 35）</label><input type="number" id="fOff" value="35"></div>
+    </div>
+    <p class="note">App 實測：byte9 = 滑桿百分比，byte8 = byte9 + 35。</p>
+  </details>
+
+  <div class="btn-row" style="margin-top:10px">
+    <button class="b-ghost b-sm" id="btnReplay" disabled>重播官方 App 序列（基準測試）</button>
+  </div>
+</section>
+
+<!-- 4 MODULATION -->
+<section>
+  <h2>4 · 感測器調變 <span class="badge" id="modBadge">關閉</span></h2>
+  <div class="hint">
+    以連線後擷取的基準值為零點。<b>氣壓升高 → 減弱</b>；<b>溫度升高 → 減弱、降低 → 增強</b>。
+    倍率是「每單位變化對應幾個百分點」。
+  </div>
+
+  <div class="grid2">
+    <div class="stat"><div class="k">氣壓 mbar</div><div class="v" id="mPress">—</div><div class="r" id="mPressD">Δ —</div></div>
+    <div class="stat"><div class="k">溫度 °C</div><div class="v" id="mTemp">—</div><div class="r" id="mTempD">Δ —</div></div>
+  </div>
+
+  <div class="switch" style="margin-top:10px"><input type="checkbox" id="optModP"><span><b>氣壓調變</b>（升高 → 強度下降）</span></div>
+  <div class="row">
     <div>
-      <label>通道（byte 2）</label>
-      <select id="chSel">
-        <option value="2">02</option>
-        <option value="1">01</option>
-        <option value="both">兩者都送</option>
-      </select>
+      <div class="slabel"><span>倍率</span><b><span id="lblGp">20</span> %/mbar</b></div>
+      <input type="range" id="sGp" min="0" max="200" step="1" value="20">
     </div>
   </div>
 
-  <div class="frame" id="framePreview">0A 12 02 02 03 E8 03 E8 23 00</div>
+  <div class="switch" style="margin-top:10px"><input type="checkbox" id="optModT"><span><b>溫度調變</b>（升高 → 下降，降低 → 上升）</span></div>
+  <div class="row">
+    <div>
+      <div class="slabel"><span>倍率</span><b><span id="lblGt">10</span> %/°C</b></div>
+      <input type="range" id="sGt" min="0" max="100" step="1" value="10">
+    </div>
+  </div>
 
-  <details>
-    <summary>進階：frame 各欄位</summary>
-    <div class="row" style="margin-top:8px">
-      <div><label>表頭 byte0</label><input type="text" id="fHdr0" class="mono" value="0A"></div>
-      <div><label>表頭 byte1</label><input type="text" id="fHdr1" class="mono" value="12"></div>
-      <div><label>執行碼 byte3</label><input type="text" id="fRun" class="mono" value="02"></div>
+  <div class="row" style="margin-top:10px">
+    <div>
+      <div class="slabel"><span>平滑</span><b><span id="lblSm">0.30</span></b></div>
+      <input type="range" id="sSm" min="1" max="100" step="1" value="30">
     </div>
-    <div class="row" style="margin-top:8px">
-      <div><label>參數 1（byte4-5, u16BE）</label><input type="number" id="fP1" value="1000"></div>
-      <div><label>參數 2（byte6-7, u16BE）</label><input type="number" id="fP2" value="1000"></div>
-    </div>
-    <div class="switch"><input type="checkbox" id="optLinkAB" checked><span>byte8 = byte9 + 偏移（App 的行為，偏移 35）</span></div>
-    <div class="row" style="margin-top:4px">
-      <div><label>偏移</label><input type="number" id="fOff" value="35"></div>
-      <div><label>byte8 手動</label><input type="number" id="fA" value="65" min="0" max="255"></div>
-      <div><label>byte9 手動</label><input type="number" id="fB" value="30" min="0" max="255"></div>
-    </div>
-    <p class="note">App 實測值：byte9 = 滑桿百分比（30…50，以 5 為級距），byte8 恆為 byte9 + 35。
-    兩者的實際作用還沒分辨出來，取消連動可以各自試。</p>
-  </details>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div><label>更新間隔 ms</label><input type="number" id="modMs" value="250" min="100" step="50"></div>
+    <div><label>下限 %</label><input type="number" id="modMin" value="0" min="0" max="100"></div>
+    <div><label>上限 %</label><input type="number" id="modMax" value="100" min="0" max="100"></div>
+  </div>
+  <div class="btn-row" style="margin-top:9px">
+    <button class="b-warn b-sm" id="btnRebase" disabled>重設基準（現在的讀值當零點）</button>
+  </div>
+  <p class="note" id="baseNote">基準：尚未擷取</p>
 </section>
 
-<!-- 4 SENSORS -->
+<!-- 5 SCANNER -->
 <section>
-  <h2>4 · 感測器 <span class="badge" id="sensBadge">—</span></h2>
+  <h2>5 · 未知指令掃描 <span class="badge" id="scanBadge">—</span></h2>
+  <div class="hint">
+    <b>燈光和震動模式的封包我沒有</b> —— 那次 btsnoop 只操作了強度滑桿，
+    所以 log 裡只有 <code>0A 12</code> 這一種 frame。<code>12</code> 很可能是子指令碼。<br>
+    這裡拿目前的 frame，指定掃第幾個位元組。<code>0xFFF2</code> 寫入不會斷線，掃起來安全。
+  </div>
+  <div class="row">
+    <div>
+      <label>掃描哪個位元組</label>
+      <select id="scIdx">
+        <option value="1">byte1（子指令，最可能）</option>
+        <option value="3">byte3（執行碼）</option>
+        <option value="2">byte2（通道）</option>
+        <option value="8">byte8</option>
+        <option value="9">byte9</option>
+      </select>
+    </div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div><label>從</label><input type="text" id="scFrom" class="mono" value="00"></div>
+    <div><label>到</label><input type="text" id="scTo" class="mono" value="3F"></div>
+    <div><label>停留 ms</label><input type="number" id="scDwell" value="900" min="200" step="100"></div>
+  </div>
+  <div class="btn-row" style="margin-top:9px">
+    <button class="b-primary" id="btnScan" disabled>開始掃描</button>
+    <button class="b-danger" id="btnScanStop" disabled>停止</button>
+  </div>
+  <div class="scannow" id="scanNow" style="display:none">
+    正在送：<b id="scanLabel">—</b><br>
+    <span class="note" id="scanProg"></span>
+    <button class="b-ok" id="btnScanMark" style="width:100%;margin-top:9px">有反應！記下這個值</button>
+  </div>
+  <table style="margin-top:10px">
+    <thead><tr><th style="width:70px">值</th><th>frame</th></tr></thead>
+    <tbody id="scanHits"></tbody>
+  </table>
+</section>
+
+<!-- 6 SENSORS -->
+<section>
+  <h2>6 · 感測器 <span class="badge" id="sensBadge">—</span></h2>
   <div class="grid3">
     <div class="stat" id="cTemp"><div class="k">溫度 °C</div><div class="v" id="vTemp">—</div><div class="r">0x0A0D</div></div>
     <div class="stat" id="cPress"><div class="k">氣壓 mbar</div><div class="v" id="vPress">—</div><div class="r">0x0A0D</div></div>
@@ -234,22 +323,21 @@
   </table>
 </section>
 
-<!-- 5 RAW -->
+<!-- 7 RAW -->
 <section>
-  <h2>5 · Raw hex console</h2>
-  <div><label>目標特徵（短碼如 fff2 或完整 UUID）</label><input type="text" id="rawUuid" value="fff2"></div>
+  <h2>7 · Raw hex console</h2>
+  <div><label>目標特徵</label><input type="text" id="rawUuid" value="fff2"></div>
   <div style="margin-top:8px"><label>Hex bytes</label><input type="text" id="rawHex" class="mono" value="0A 12 02 02 03 E8 03 E8 41 1E"></div>
   <div class="btn-row" style="margin-top:9px">
     <button class="b-primary b-sm" id="btnRawWrite" disabled>Write</button>
     <button class="b-ghost b-sm" id="btnRawRead" disabled>Read</button>
   </div>
   <div style="margin-top:9px;font-size:12px" class="val mono" id="rawOut">—</div>
-  <p class="note">寫 <code>0x0A50</code> 會立刻斷線並失去授權。官方 App 從頭到尾沒碰過它。</p>
 </section>
 
 <section>
   <h2>Log <button class="b-ghost b-sm" id="btnCopyLog" style="margin-left:auto;flex:none">Copy</button></h2>
-  <div class="switch"><input type="checkbox" id="optQuiet" checked><span>安靜模式（不記錄感測器串流）</span></div>
+  <div class="switch"><input type="checkbox" id="optQuiet" checked><span>安靜模式（不記錄感測器串流與調變寫入）</span></div>
   <div id="log"></div>
 </section>
 
@@ -278,7 +366,8 @@ function parseHexList(s){
   return (s||'').trim().split(/[\s,]+/).map(function(t){ return parseInt(t,16)&0xff; })
         .filter(function(n){ return !isNaN(n); });
 }
-function hb(id,dflt){ var n=parseInt(($(id).value||'').trim(),16); return isNaN(n)?dflt:(n&0xff); }
+function hb(id,d){ var n=parseInt(($(id).value||'').trim(),16); return isNaN(n)?d:(n&0xff); }
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
 
 var logEl=$('log');
 function log(m){
@@ -295,20 +384,17 @@ $('btnCopyLog').addEventListener('click',function(){
   document.body.removeChild(ta);
 });
 
-/* ---- protocol constants recovered from btsnoop_hci.log ----
-   AUTH : write the device's 8-byte static key to 0x0A11,
-          device answers 01 00 00 00 00 00 00 00
-   MOTOR: write to 0xFFF2 (write-with-response)
-          run  : 0A 12 <ch> 02 <p1:u16BE> <p2:u16BE> <a> <b>
-          stop : 0A 12 <ch> 00
-   The official app never touches 0xFFF1 or 0x0A50.                     */
+/* ---- protocol from btsnoop_hci.log ----
+   AUTH : 0x0A11 <- 8-byte static key ; device answers 01 00 00 00 00 00 00 00
+   MOTOR: 0xFFF2 <- 0A 12 <ch> 02 <p1:u16BE> <p2:u16BE> <a> <b>
+          stop     0A 12 <ch> 00
+   Channels 02 and 01 are the two motors (the app exercised each separately). */
 var SVC_LELO=u16uuid(0xfff0), SVC_DEVINFO=u16uuid(0x180a), SVC_BATT=u16uuid(0x180f);
 var C_KEY=0x0a11, C_TX=0xfff2, C_A50=0x0a50;
 var WRITE_BLOCKED=[0x0a01,0x0a02,0x0a03];
 var QUIET_CHARS=[0x0a0a,0x0a0c,0x0a0d,0x2a19];
 var KEY_STORE='lelo_f1sv3_key';
-
-/* the exact byte pairs the official app sent, in order */
+var CH_A=2, CH_B=1;
 var APP_SEQ=[[0x41,0x1e],[0x46,0x23],[0x4b,0x28],[0x50,0x2d],[0x55,0x32]];
 
 function isBlocked(c){ var s=shortOf(c.uuid); return s!==null&&WRITE_BLOCKED.indexOf(s)>=0; }
@@ -319,11 +405,15 @@ function optionalServices(){
 }
 
 var S={
-  device:null, server:null, chars:[], byShort:{}, byUuid:{},
-  notifyChars:[], connected:false, mutex:Promise.resolve(),
-  pow:0, pollTimer:null, lastWrite:null, connectedAt:0,
-  key:null, authed:false, authSent:false, replaying:false,
-  reconnecting:false, waiters:[]
+  device:null, server:null, chars:[], byShort:{}, byUuid:{}, notifyChars:[],
+  connected:false, mutex:Promise.resolve(),
+  baseA:0, baseB:0,          // slider values (user intent)
+  outA:0,  outB:0,           // last values actually written
+  press:null, temp:null,     // smoothed sensor values
+  basePress:null, baseTemp:null,
+  pollTimer:null, modTimer:null, lastWrite:null, connectedAt:0,
+  key:null, authed:false, authSent:false, busySeq:false,
+  scan:null, reconnecting:false, waiters:[]
 };
 function q(fn){ var r=S.mutex.then(fn,fn); S.mutex=r.catch(function(){}); return r; }
 function withTimeout(p,ms,l){
@@ -340,9 +430,8 @@ function props(c){
   return o.join('');
 }
 function enableAll(on){
-  ['btnDisconnect','btnReRead','btnStop','btnPoll','btnDump','btnRawWrite','btnRawRead','btnReplay']
-    .forEach(function(i){ $(i).disabled=!on; });
-  $('btnAuth').disabled = !on;
+  ['btnDisconnect','btnReRead','btnStop','btnPoll','btnDump','btnRawWrite','btnRawRead',
+   'btnReplay','btnScan','btnRebase','btnAuth'].forEach(function(i){ $(i).disabled=!on; });
 }
 (function(){
   var m=[];
@@ -351,31 +440,20 @@ function enableAll(on){
   if(m.length){ $('envWarn').style.display='block'; $('envWarn').innerHTML=m.join('<br>'); }
 })();
 
-/* remember the key across page loads */
-try{
-  var saved=localStorage.getItem(KEY_STORE);
-  if(saved) $('keyInput').value=saved;
-}catch(e){}
+try{ var saved=localStorage.getItem(KEY_STORE); if(saved) $('keyInput').value=saved; }catch(e){}
 $('keyInput').addEventListener('change',function(){
   var b=parseHexList(this.value);
   if(b.length===8){
-    try{ localStorage.setItem(KEY_STORE, hexArr(b)); }catch(e){}
+    try{ localStorage.setItem(KEY_STORE,hexArr(b)); }catch(e){}
     this.value=hexArr(b);
     log('金鑰已儲存：'+hexArr(b));
-  } else if(this.value.trim()){
-    log('金鑰必須是 8 個位元組，目前 '+b.length+' 個');
-  }
+  } else if(this.value.trim()) log('金鑰必須是 8 個位元組，目前 '+b.length+' 個');
 });
-function storedKey(){
-  var b=parseHexList($('keyInput').value);
-  return b.length===8 ? b : null;
-}
+function storedKey(){ var b=parseHexList($('keyInput').value); return b.length===8?b:null; }
 
-/* ==================== AUTH STATE ==================== */
 function setAuthState(n,big,sm){
   $('authBox').className='auth s'+n;
-  $('authBig').textContent=big;
-  $('authSm').textContent=sm||'';
+  $('authBig').textContent=big; $('authSm').textContent=sm||'';
   S.authed=(n===2);
   setBadge($('motorBadge'), S.authed?'已授權':'未授權', S.authed?'on':'err');
   setBadge($('keyBadge'),   S.authed?'OK':'等待', S.authed?'on':'');
@@ -400,8 +478,7 @@ function pickAndConnect(){
   else                   opts={ acceptAllDevices:true, optionalServices:opt };
   setBadge($('connBadge'),'Scanning…','busy');
   return navigator.bluetooth.requestDevice(opts).then(function(d){
-    S.device=d;
-    log('picked: '+(d.name||'(no name)'));
+    S.device=d; log('picked: '+(d.name||'(no name)'));
     d.addEventListener('gattserverdisconnected',onDrop);
     return openLink();
   });
@@ -409,7 +486,8 @@ function pickAndConnect(){
 function openLink(){
   var t0=Date.now();
   setBadge($('connBadge'),'Connecting…','busy');
-  S.authSent=false;
+  S.authSent=false; S.basePress=null; S.baseTemp=null; S.press=null; S.temp=null;
+  $('baseNote').textContent='基準：尚未擷取';
   return withTimeout(S.device.gatt.connect(),30000,'gatt.connect').then(function(srv){
     S.server=srv; S.connectedAt=Date.now();
     log('gatt.connect ok (+'+(Date.now()-t0)+'ms)');
@@ -420,21 +498,22 @@ function openLink(){
     setAuthState(1,'等待授權','');
     return subscribeAll();
   }).then(function(){
-    if($('optAutoAuth').checked && storedKey()) return delay(300).then(doAuth);
+    startModLoop();
+    if($('optAutoAuth').checked&&storedKey()) return delay(300).then(doAuth);
     if(!storedKey()) setAuthState(1,'請按一次電源鍵','沒有存金鑰 — 等 0x0A11 吐出來');
   }).then(function(){
-    var w=S.waiters; S.waiters=[];
-    w.forEach(function(fn){ fn(); });
+    var w=S.waiters; S.waiters=[]; w.forEach(function(fn){ fn(); });
   });
 }
 function onDrop(){
   if(!S.device) return;
   var wasConn=S.connected;
-  S.connected=false; S.authSent=false; S.replaying=false;
+  S.connected=false; S.authSent=false; S.busySeq=false;
   if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; }
+  if(S.modTimer){ clearInterval(S.modTimer); S.modTimer=null; }
+  stopScan();
   S.chars=[]; S.byShort={}; S.byUuid={}; S.notifyChars=[];
-  enableAll(false);
-  setAuthState(0,'未連線','');
+  enableAll(false); setAuthState(0,'未連線','');
   if(wasConn){
     log('*** DISCONNECTED after '+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s ***');
     if(S.lastWrite) log('***   斷線前最後寫入: '+S.lastWrite.uuid+' <- '+S.lastWrite.hex+' ***');
@@ -485,163 +564,248 @@ function writeCh(c,bytes){
   var buf=new Uint8Array(bytes);
   S.lastWrite={ uuid:shortLabel(c.uuid), hex:hexArr(bytes), t:Date.now() };
   return q(function(){
-    /* the app used ATT WRITE_REQ throughout — always write-with-response */
     if(c.writeValueWithResponse) return c.writeValueWithResponse(buf).catch(function(){ return c.writeValue(buf); });
     return c.writeValue(buf);
   });
 }
 function readCh(c){ return q(function(){ return c.readValue(); }); }
+function txChar(){ return S.byShort[C_TX]||null; }
 
 /* ==================== AUTH ==================== */
 function doAuth(){
   var k=storedKey()||S.key;
-  if(!k){ log('沒有金鑰可用 —— 按一次電源鍵讓 0x0A11 吐出來'); return Promise.resolve(); }
+  if(!k){ log('沒有金鑰可用 —— 按一次電源鍵'); return Promise.resolve(); }
   var c=S.byShort[C_KEY];
   if(!c){ log('0x0A11 不存在'); return Promise.resolve(); }
   S.authSent=true;
   return writeCh(c,k.slice()).then(function(){
     log('AUTH → 0x0A11 <- '+hexArr(k));
     return delay(300).then(function(){ return readCh(c); });
-  }).then(function(v){
-    onKeyValue(v);
-  },function(e){ log('AUTH FAILED: '+e.message); });
+  }).then(onKeyValue,function(e){ log('AUTH FAILED: '+e.message); });
 }
 $('btnAuth').addEventListener('click',function(){ doAuth(); });
 $('btnReRead').addEventListener('click',function(){
   var c=S.byShort[C_KEY]; if(!c) return;
   readCh(c).then(function(v){ log('0x0A11 = '+hexOf(v)); onKeyValue(v); },function(e){ log('read err: '+e.message); });
 });
-
 function onKeyValue(dv){
   var b=bytesOf(dv), h=hexArr(b);
   if(isAuthPattern(b)){
-    if(!S.authed) log('#### AUTHORISED  0x0A11 = '+h+'  ####');
+    if(!S.authed) log('#### AUTHORISED ####');
     setAuthState(2,'✅ 已授權','0x0A11 = '+h);
     return;
   }
   if(allZero(b)){
-    if(S.authed){
-      log('!!!! 授權失效 !!!!');
-      setAuthState(3,'授權失效','請重新授權或按電源鍵');
-    } else if(!storedKey()){
-      setAuthState(1,'請按一次電源鍵','0x0A11 目前全零');
-    }
+    if(S.authed){ log('!!!! 授權失效 !!!!'); setAuthState(3,'授權失效','請重新授權'); }
+    else if(!storedKey()) setAuthState(1,'請按一次電源鍵','0x0A11 目前全零');
     return;
   }
-  /* non-zero, not the ACK → this is the device key */
   S.key=b;
   if(!$('keyInput').value.trim()){
     $('keyInput').value=h;
     try{ localStorage.setItem(KEY_STORE,h); }catch(e){}
-    log('#### KEY 擷取並儲存：'+h+'  ####');
+    log('#### KEY 擷取並儲存：'+h+' ####');
   }
   setAuthState(1,'已取得金鑰',h);
-  if($('optAutoAuth').checked && !S.authSent){ delay(200).then(doAuth); }
+  if($('optAutoAuth').checked&&!S.authSent) delay(200).then(doAuth);
 }
 
-/* ==================== MOTOR ==================== */
-function frameRun(ch,a,b){
-  var p1=Math.max(0,Math.min(65535,+$('fP1').value||1000));
-  var p2=Math.max(0,Math.min(65535,+$('fP2').value||1000));
+/* ==================== FRAME ==================== */
+function frameRun(ch,pct){
+  var p1=clamp(+$('fP1').value||1000,0,65535);
+  var p2=clamp(+$('fP2').value||1000,0,65535);
+  var off=+$('fOff').value||0;
+  var b=clamp(Math.round(pct),0,255);
+  var a=clamp(b+off,0,255);
   return [hb('fHdr0',0x0a), hb('fHdr1',0x12), ch&0xff, hb('fRun',0x02),
-          (p1>>8)&0xff, p1&0xff, (p2>>8)&0xff, p2&0xff, a&0xff, b&0xff];
+          (p1>>8)&0xff, p1&0xff, (p2>>8)&0xff, p2&0xff, a, b];
 }
-function frameStop(ch){
-  return [hb('fHdr0',0x0a), hb('fHdr1',0x12), ch&0xff, 0x00];
-}
-function currentAB(){
-  if($('optLinkAB').checked){
-    var b=S.pow, off=+$('fOff').value||0;
-    var a=Math.max(0,Math.min(255,b+off));
-    $('fA').value=a; $('fB').value=b;
-    return [a,b];
-  }
-  return [Math.max(0,Math.min(255,+$('fA').value||0)),
-          Math.max(0,Math.min(255,+$('fB').value||0))];
-}
-function channels(){
-  var v=$('chSel').value;
-  return v==='both' ? [2,1] : [parseInt(v,10)];
-}
-function updatePreview(){
-  var ab=currentAB();
-  var f = S.pow>0 ? frameRun(channels()[0],ab[0],ab[1]) : frameStop(channels()[0]);
-  $('framePreview').textContent=hexArr(f);
-}
+function frameStop(ch){ return [hb('fHdr0',0x0a), hb('fHdr1',0x12), ch&0xff, 0x00]; }
 
-function txChar(){ return S.byShort[C_TX]||null; }
-var busy=false, dirty=false, lastSent='';
-function schedule(){ dirty=true; pump(); }
+/* ==================== MODULATION ==================== */
+function gainP(){ return +$('sGp').value||0; }
+function gainT(){ return +$('sGt').value||0; }
+function modActive(){ return $('optModP').checked||$('optModT').checked; }
+
+function modulate(base){
+  if(base<=0) return 0;              // a stopped motor stays stopped
+  var v=base;
+  if($('optModP').checked && S.press!==null && S.basePress!==null)
+    v -= gainP()*(S.press-S.basePress);
+  if($('optModT').checked && S.temp!==null && S.baseTemp!==null)
+    v -= gainT()*(S.temp-S.baseTemp);
+  var lo=clamp(+$('modMin').value||0,0,100), hi=clamp(+$('modMax').value||100,0,100);
+  if(hi<lo){ var t=lo; lo=hi; hi=t; }
+  return Math.round(clamp(v,lo,hi));
+}
+function refreshModUI(){
+  var on=modActive();
+  setBadge($('modBadge'), on?'啟用':'關閉', on?'on':'');
+  $('lblGp').textContent=gainP();
+  $('lblGt').textContent=gainT();
+  $('lblSm').textContent=((+$('sSm').value||30)/100).toFixed(2);
+  var a=modulate(S.baseA), b=modulate(S.baseB);
+  $('modA').textContent = (on&&S.baseA>0) ? ('→ '+a+'%') : '';
+  $('modB').textContent = (on&&S.baseB>0) ? ('→ '+b+'%') : '';
+  $('barA').style.width=a+'%';
+  $('barB').style.width=b+'%';
+  $('framePreview').textContent =
+    'CH02  '+hexArr(a>0?frameRun(CH_A,a):frameStop(CH_A))+'\n'+
+    'CH01  '+hexArr(b>0?frameRun(CH_B,b):frameStop(CH_B));
+  if(S.basePress!==null)
+    $('baseNote').textContent='基準：氣壓 '+S.basePress.toFixed(2)+' mbar · 溫度 '+S.baseTemp.toFixed(2)+' °C';
+}
+function startModLoop(){
+  if(S.modTimer) clearInterval(S.modTimer);
+  var ms=clamp(+$('modMs').value||250,100,5000);
+  S.modTimer=setInterval(function(){
+    if(!S.connected) return;
+    refreshModUI();
+    if(!modActive()) return;
+    pushIfChanged();
+  },ms);
+}
+['modMs'].forEach(function(id){ $(id).addEventListener('change',startModLoop); });
+['optModP','optModT','sGp','sGt','sSm','modMin','modMax'].forEach(function(id){
+  $(id).addEventListener('input',refreshModUI);
+  $(id).addEventListener('change',refreshModUI);
+});
+$('btnRebase').addEventListener('click',function(){
+  if(S.press===null){ log('還沒有感測器讀值'); return; }
+  S.basePress=S.press; S.baseTemp=S.temp;
+  log('基準重設：氣壓 '+S.basePress.toFixed(2)+' mbar，溫度 '+S.baseTemp.toFixed(2)+' °C');
+  refreshModUI();
+});
+
+/* ==================== TX ==================== */
+var txBusy=false, txDirty=false;
+function pushIfChanged(){
+  var a=modulate(S.baseA), b=modulate(S.baseB);
+  if(a!==S.outA||b!==S.outB){ txDirty=true; pump(); }
+}
+function schedule(){ txDirty=true; pump(); }
 function pump(){
-  if(busy||!dirty||!S.connected||S.replaying) return;
+  if(txBusy||!txDirty||!S.connected||S.busySeq) return;
   var c=txChar(); if(!c) return;
-  dirty=false; busy=true;
-  var ab=currentAB(), chs=channels();
-  var frames = (S.pow>0) ? chs.map(function(ch){ return frameRun(ch,ab[0],ab[1]); })
-                         : chs.map(function(ch){ return frameStop(ch); });
+  txDirty=false; txBusy=true;
+  var a=modulate(S.baseA), b=modulate(S.baseB);
+  var fa = a>0 ? frameRun(CH_A,a) : frameStop(CH_A);
+  var fb = b>0 ? frameRun(CH_B,b) : frameStop(CH_B);
+  var jobs=[];
+  if(a!==S.outA) jobs.push([fa,'CH02',a]);
+  if(b!==S.outB) jobs.push([fb,'CH01',b]);
+  S.outA=a; S.outB=b;
   var chain=Promise.resolve();
-  frames.forEach(function(f){
+  jobs.forEach(function(j){
     chain=chain.then(function(){
-      return writeCh(c,f).then(function(){
-        var line=hexArr(f);
-        if(line!==lastSent){ lastSent=line; log('TX 0xFFF2 <- '+line+(S.authed?'':'   [未授權！]')); }
+      return writeCh(c,j[0]).then(function(){
+        if(!$('optQuiet').checked||!modActive())
+          log('TX '+j[1]+' '+j[2]+'% <- '+hexArr(j[0])+(S.authed?'':'  [未授權！]'));
       },function(e){ log('TX failed: '+e.message); });
     });
   });
-  chain.then(function(){ busy=false; setTimeout(pump,40); });
+  chain.then(function(){ txBusy=false; setTimeout(pump,40); });
 }
-function setPow(n){
-  S.pow=Math.max(0,Math.min(100,n|0));
-  $('sPow').value=S.pow; $('lblPow').textContent=S.pow;
-  updatePreview();
-}
-$('sPow').addEventListener('input',function(){ setPow(+this.value); schedule(); });
-Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'),function(b){
-  b.addEventListener('click',function(){ setPow(+b.getAttribute('data-preset')); schedule(); });
+function setA(n){ S.baseA=clamp(n|0,0,100); $('sA').value=S.baseA; $('lblA').textContent=S.baseA; refreshModUI(); }
+function setB(n){ S.baseB=clamp(n|0,0,100); $('sB').value=S.baseB; $('lblB').textContent=S.baseB; refreshModUI(); }
+$('sA').addEventListener('input',function(){ setA(+this.value); if($('optLink').checked) setB(S.baseA); schedule(); });
+$('sB').addEventListener('input',function(){ setB(+this.value); if($('optLink').checked) setA(S.baseB); schedule(); });
+Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'),function(btn){
+  btn.addEventListener('click',function(){
+    var n=+btn.getAttribute('data-preset');
+    setA(n); setB(n); schedule();
+  });
 });
 $('btnStop').addEventListener('click',function(){
-  S.replaying=false;
-  setPow(0); schedule();
+  stopScan(); S.busySeq=false;
+  setA(0); setB(0); schedule();
 });
-['fHdr0','fHdr1','fRun','fP1','fP2','fA','fB','fOff','chSel'].forEach(function(id){
-  $(id).addEventListener('input',updatePreview);
-  $(id).addEventListener('change',updatePreview);
+['fHdr0','fHdr1','fRun','fP1','fP2','fOff'].forEach(function(id){
+  $(id).addEventListener('input',refreshModUI);
+  $(id).addEventListener('change',refreshModUI);
 });
-$('optLinkAB').addEventListener('change',updatePreview);
 
-/* replay the captured app sequence byte-for-byte */
+/* replay the captured app sequence */
 $('btnReplay').addEventListener('click',function(){
-  var c=txChar();
-  if(!c){ log('0xFFF2 不存在'); return; }
-  if(!S.authed) log('注意：目前未授權，重播很可能無效。');
-  var ch=channels()[0];
-  S.replaying=true;
-  log('=== 重播官方序列（通道 '+pad2(ch).toUpperCase()+'）===');
+  var c=txChar(); if(!c){ log('0xFFF2 不存在'); return; }
+  if(!S.authed) log('注意：目前未授權。');
+  S.busySeq=true;
+  log('=== 重播官方序列（通道 02）===');
   var chain=Promise.resolve();
-  var steps=[];
-  APP_SEQ.forEach(function(ab){ steps.push(ab); });          // 30 → 50 %
-  steps.push(null);                                          // hold marker
-  APP_SEQ.slice(0,4).reverse().forEach(function(ab){ steps.push(ab); }); // 45 → 30 %
+  var steps=APP_SEQ.slice();
+  steps.push(null);
+  APP_SEQ.slice(0,4).reverse().forEach(function(x){ steps.push(x); });
   steps.forEach(function(ab){
     chain=chain.then(function(){
-      if(!S.replaying) return;
+      if(!S.busySeq) return;
       if(ab===null){ log('   … 維持 5 秒 …'); return delay(5000); }
-      var f=frameRun(ch,ab[0],ab[1]);
-      return writeCh(c,f).then(function(){ log('   TX <- '+hexArr(f)); },
-                               function(e){ log('   TX err: '+e.message); })
+      var p1=clamp(+$('fP1').value||1000,0,65535), p2=clamp(+$('fP2').value||1000,0,65535);
+      var f=[0x0A,0x12,CH_A,0x02,(p1>>8)&0xff,p1&0xff,(p2>>8)&0xff,p2&0xff,ab[0],ab[1]];
+      return writeCh(c,f).then(function(){ log('   TX <- '+hexArr(f)); },function(e){ log('   err: '+e.message); })
              .then(function(){ return delay(450); });
     });
   });
   chain.then(function(){
-    if(!S.replaying) return;
-    var f=frameStop(ch);
-    return writeCh(c,f).then(function(){ log('   TX <- '+hexArr(f)+'   (stop)'); },function(){});
-  }).then(function(){
-    S.replaying=false;
-    log('=== 重播結束 ===');
-    setPow(0);
-  });
+    if(!S.busySeq) return;
+    return writeCh(c,frameStop(CH_A)).then(function(){ log('   TX <- '+hexArr(frameStop(CH_A))+'  (stop)'); },function(){});
+  }).then(function(){ S.busySeq=false; log('=== 重播結束 ==='); setA(0); setB(0); });
 });
+
+/* ==================== BYTE SCANNER ==================== */
+$('btnScan').addEventListener('click',startScan);
+$('btnScanStop').addEventListener('click',stopScan);
+$('btnScanMark').addEventListener('click',function(){
+  if(!S.scan) return;
+  var f=S.scan.lastFrame, v=S.scan.v;
+  var tr=document.createElement('tr');
+  var a=document.createElement('td'); a.textContent='0x'+pad2(v).toUpperCase();
+  var b=document.createElement('td'); b.className='val'; b.textContent=hexArr(f);
+  tr.appendChild(a); tr.appendChild(b);
+  $('scanHits').appendChild(tr);
+  log('*** 命中：byte'+S.scan.idx+' = 0x'+pad2(v).toUpperCase()+'   frame '+hexArr(f)+' ***');
+});
+function startScan(){
+  if(!S.connected) return;
+  var from=parseInt(($('scFrom').value||'0').replace(/^0x/i,''),16)&0xff;
+  var to  =parseInt(($('scTo').value||'FF').replace(/^0x/i,''),16)&0xff;
+  if(to<from){ var t=from; from=to; to=t; }
+  S.scan={ idx:parseInt($('scIdx').value,10), v:from, to:to, stop:false, lastFrame:[] };
+  S.busySeq=true;
+  $('scanNow').style.display='block';
+  $('btnScan').disabled=true; $('btnScanStop').disabled=false;
+  log('=== 掃描 byte'+S.scan.idx+' 0x'+pad2(from).toUpperCase()+'–0x'+pad2(to).toUpperCase()+' ===');
+  scanStep();
+}
+function stopScan(){
+  if(S.scan) S.scan.stop=true;
+  S.scan=null; S.busySeq=false;
+  $('scanNow').style.display='none';
+  $('btnScan').disabled=!S.connected; $('btnScanStop').disabled=true;
+}
+function scanStep(){
+  var s=S.scan;
+  if(!s||s.stop||!S.connected) return;
+  if(s.v>s.to){ log('=== 掃描完成 ==='); stopScan(); return; }
+  var c=txChar(); if(!c){ stopScan(); return; }
+  var f=frameRun(CH_A, S.baseA>0?S.baseA:60);
+  if(s.idx<f.length) f[s.idx]=s.v;
+  s.lastFrame=f.slice();
+  $('scanLabel').textContent=hexArr(f);
+  $('scanProg').textContent='byte'+s.idx+' = 0x'+pad2(s.v).toUpperCase()+'  /  0x'+pad2(s.to).toUpperCase();
+  var dwell=clamp(+$('scDwell').value||900,200,10000);
+  writeCh(c,f).then(function(){ log('scan byte'+s.idx+'=0x'+pad2(s.v).toUpperCase()+' <- '+hexArr(f)); },
+                    function(e){ log('scan err: '+e.message); })
+    .then(function(){ return delay(dwell); })
+    .then(function(){
+      if(!S.scan||S.scan.stop) return;
+      return writeCh(c,frameStop(CH_A)).catch(function(){}).then(function(){ return delay(250); });
+    })
+    .then(function(){
+      if(!S.scan||S.scan.stop) return;
+      S.scan.v++;
+      scanStep();
+    });
+}
 
 /* ==================== SENSORS ==================== */
 function decode0A0D(dv){
@@ -654,11 +818,27 @@ function flash(id){
   el.classList.add('live'); clearTimeout(el._ft);
   el._ft=setTimeout(function(){ el.classList.remove('live'); },350);
 }
+function ema(prev,val,alpha){ return prev===null ? val : prev+alpha*(val-prev); }
 function applySensor(c,dv){
   var sh=shortOf(c.uuid);
   if(sh===0x0a0d){
     var d=decode0A0D(dv);
-    if(d){ $('vTemp').textContent=d.temp.toFixed(2); $('vPress').textContent=d.press.toFixed(2); flash('cTemp'); flash('cPress'); }
+    if(d){
+      var alpha=clamp((+$('sSm').value||30)/100,0.01,1);
+      S.press=ema(S.press,d.press,alpha);
+      S.temp =ema(S.temp, d.temp, alpha);
+      if(S.basePress===null && S.connected && (Date.now()-S.connectedAt)>4000){
+        S.basePress=S.press; S.baseTemp=S.temp;
+        log('自動擷取基準：氣壓 '+S.basePress.toFixed(2)+' mbar，溫度 '+S.baseTemp.toFixed(2)+' °C');
+      }
+      $('vTemp').textContent=d.temp.toFixed(2);
+      $('vPress').textContent=d.press.toFixed(2);
+      $('mTemp').textContent=S.temp.toFixed(2);
+      $('mPress').textContent=S.press.toFixed(2);
+      $('mPressD').textContent='Δ '+(S.basePress===null?'—':(S.press-S.basePress>=0?'+':'')+(S.press-S.basePress).toFixed(2));
+      $('mTempD').textContent ='Δ '+(S.baseTemp===null?'—':(S.temp-S.baseTemp>=0?'+':'')+(S.temp-S.baseTemp).toFixed(2));
+      flash('cTemp'); flash('cPress');
+    }
   } else if(sh===0x0a0a){
     if(dv.byteLength>=2){ $('vVolt').textContent=dv.getUint16(0,false); flash('cVolt'); }
   } else if(sh===0x0a0c){
@@ -794,10 +974,8 @@ $('btnRawRead').addEventListener('click',function(){
 });
 
 setAuthState(0,'未連線','');
-updatePreview();
-log('v6 ready — 協定取自 btsnoop_hci.log。');
-log('AUTH : 0x0A11 <- 8-byte 固定金鑰，裝置回 01 00 00 00 00 00 00 00');
-log('MOTOR: 0xFFF2 <- 0A 12 <ch> 02 <p1BE> <p2BE> <a> <b>   停止 = 0A 12 <ch> 00');
+refreshModUI();
+log('v7 ready — 雙馬達（通道 02 / 01）、感測器調變、位元組掃描。');
 </script>
 </body>
 </html>
