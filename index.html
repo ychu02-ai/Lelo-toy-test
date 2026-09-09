@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>LELO F1S V3 — Direct BLE Lab v3</title>
+<title>LELO F1S V3 — Direct BLE Lab v4</title>
 <style>
   :root{
     --bg:#0b0b12; --panel:#15151f; --panel2:#1d1d2a; --border:#2c2c3d;
@@ -62,9 +62,12 @@
   .warnbox{ background:#2a1a00; border:1px solid var(--warn); color:#ffd9a0; border-radius:10px; padding:9px 11px; font-size:12px; margin-bottom:10px; }
   .dangerbox{ background:#2a0d14; border:1px solid var(--danger); color:#ffc4ce; border-radius:10px; padding:9px 11px; font-size:12px; margin:9px 0; }
   .hint{ background:#101a2a; border:1px solid var(--accent2); color:#c9d4ff; border-radius:10px; padding:9px 11px; font-size:12px; margin:9px 0; }
+  .keybox{ background:#0d2a1e; border:1px solid var(--ok); color:#b8f5da; border-radius:10px; padding:10px 11px; margin:9px 0; }
+  .keybox .kv{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:16px; font-weight:700; color:var(--ok); word-break:break-all; }
+  .mono{ font-family:ui-monospace,Menlo,Consolas,monospace; }
   .stat{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:8px 10px; overflow:hidden; }
-  .stat .k{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; white-space:nowrap;
-            overflow:hidden; text-overflow:ellipsis; }
+  .stat .k{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .stat .v{ font-size:17px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .stat .r{ font-size:10px; color:var(--muted); font-family:ui-monospace,Menlo,Consolas,monospace;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -81,22 +84,24 @@
   td.val{ color:var(--ok); }
   td.n{ color:var(--muted); text-align:right; white-space:nowrap; }
   td.lock{ color:var(--danger); }
-  .sweepnow{ background:var(--panel2); border:1px solid var(--accent2); border-radius:10px;
-             padding:10px; margin-top:9px; font-size:13px; }
-  .sweepnow b{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:15px; color:var(--accent); }
+  td.drop{ color:var(--danger); }
   .chk{ display:inline-flex; align-items:center; gap:5px; font-size:11px;
         font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--muted);
         background:var(--panel2); border:1px solid var(--border); border-radius:8px;
         padding:5px 8px; margin:3px 4px 0 0; }
   .chk input{ width:15px; height:15px; accent-color:var(--accent); }
+  .chk.warn{ border-color:var(--danger); color:#ffb0bd; }
+  .sweepnow{ background:var(--panel2); border:1px solid var(--accent2); border-radius:10px;
+             padding:10px; margin-top:9px; font-size:13px; }
+  .sweepnow b{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:15px; color:var(--accent); }
   .hide{ display:none !important; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-<h1>LELO F1S V3 — Direct BLE Lab <span style="color:var(--accent)">v3</span></h1>
-<p class="sub">感測器已解碼 · 身分欄位已定位 · 安全掃頻</p>
+<h1>LELO F1S V3 — Direct BLE Lab <span style="color:var(--accent)">v4</span></h1>
+<p class="sub">0x0A11 金鑰擷取 · 0x0A50 指令通道探測 · 自動重連</p>
 
 <div class="warnbox" id="envWarn" style="display:none"></div>
 
@@ -112,73 +117,113 @@
         <option value="all">全部裝置</option>
       </select>
     </div>
-    <div>
-      <label>名稱前綴</label>
-      <input type="text" id="namePrefix" value="F1">
-    </div>
+    <div><label>名稱前綴</label><input type="text" id="namePrefix" value="F1"></div>
   </div>
   <div class="btn-row" style="margin-top:10px">
     <button class="b-primary" id="btnConnect">Connect</button>
     <button class="b-ghost" id="btnDisconnect" disabled>Disconnect</button>
   </div>
   <div class="switch"><input type="checkbox" id="optWriteResp" checked><span>寫入用 write-with-response</span></div>
-  <p class="note">斷線時會自動印出斷線前最後一次寫入，用來抓「哪個 byte 把玩具關掉了」。</p>
+  <div class="switch"><input type="checkbox" id="optAutoRe" checked><span><b>自動重連</b>（0x0A50 被寫入後會踢掉連線，開著才能連續探測）</span></div>
+  <p class="note">重連不需要再次點選裝置，瀏覽器記得上次選的那台。玩具斷線後會回到閃燈待連狀態，約 2–3 秒後可再連。</p>
 </section>
 
-<!-- 2 IDENTITY -->
+<!-- 2 HANDSHAKE -->
 <section>
-  <h2>2 · 身分 / 授權欄位 <span class="badge" id="idBadge">—</span></h2>
+  <h2>2 · 金鑰擷取 <span class="badge" id="keyBadge">等待</span></h2>
   <div class="hint">
-    實驗：<b>連上後完全不要按電源鍵</b>，晾著看 0x0A11 會不會照樣在第 17 秒左右跳成非零。<br>
-    如果你有按，先按下面的「我剛按了電源鍵」在 log 插一個時間戳。
+    已證實：<b>0x0A11 只有在你按電源鍵時才會變成非零</b>（不按的話 60 秒都是零）。<br>
+    → 連上後 <b>按一次電源鍵</b>，下面會自動鎖住那組值。鎖住之後再按寫回按鈕。
+  </div>
+  <div class="keybox">
+    <div style="font-size:11px;opacity:.8">鎖定的金鑰（0x0A11 第一次非零的值）</div>
+    <div class="kv" id="keyVal">—</div>
+    <div style="font-size:11px;opacity:.7" id="keyMeta"></div>
   </div>
   <table>
-    <thead><tr><th style="width:62px">UUID</th><th>值</th><th style="width:64px">推測</th></tr></thead>
+    <thead><tr><th style="width:62px">UUID</th><th>目前值</th><th class="n" style="width:38px">#</th></tr></thead>
+    <tbody>
+      <tr id="rowWl"><td>0x0A11</td><td class="val" id="wlVal">—</td><td class="n" id="wlN">0</td></tr>
+      <tr id="rowA50"><td>0x0A50</td><td class="val" id="a50Val">—</td><td class="n" id="a50N">0</td></tr>
+    </tbody>
+  </table>
+  <div class="btn-row" style="margin-top:9px">
+    <button class="b-ok b-sm" id="btnEchoKey" disabled>把金鑰原樣寫回 0x0A11</button>
+    <button class="b-ghost b-sm" id="btnEchoKey01" disabled>寫回 (byte0←01)</button>
+  </div>
+  <div class="btn-row" style="margin-top:8px">
+    <button class="b-ghost b-sm" id="btnEchoKeyRev" disabled>寫回 (反轉)</button>
+    <button class="b-ghost b-sm" id="btnKeyToA50" disabled>把金鑰寫到 0x0A50</button>
+    <button class="b-ghost b-sm" id="btnKeyToA06" disabled>把金鑰寫到 0x0A06</button>
+  </div>
+  <div class="btn-row" style="margin-top:8px">
+    <button class="b-warn b-sm" id="btnMarkPress" disabled>我剛按了電源鍵</button>
+    <button class="b-ghost b-sm" id="btnClearKey">清除鎖定</button>
+  </div>
+
+  <h2 style="margin:15px 0 8px">身分欄位</h2>
+  <table>
+    <thead><tr><th style="width:62px">UUID</th><th>值</th><th style="width:60px">推測</th></tr></thead>
     <tbody>
       <tr><td>0x0A01</td><td class="val" id="v0a01">—</td><td class="lock">MAC 禁寫</td></tr>
       <tr><td>0x0A02</td><td class="val" id="v0a02">—</td><td class="lock">token 禁寫</td></tr>
       <tr><td>0x0A03</td><td class="val" id="v0a03">—</td><td class="lock">唯讀</td></tr>
-      <tr><td>0x0A06</td><td class="val" id="v0a06">—</td><td>空白名單槽</td></tr>
+      <tr><td>0x0A06</td><td class="val" id="v0a06">—</td><td>空白名單</td></tr>
       <tr><td>0x0A30</td><td class="val" id="v0a30">—</td><td>旗標</td></tr>
       <tr><td>0x0A40</td><td class="val" id="v0a40">—</td><td>旗標</td></tr>
-      <tr><td>0x0A50</td><td class="val" id="v0a50">—</td><td>旗標</td></tr>
-      <tr><td>0x0A11</td><td class="val" id="v0a11id">—</td><td id="v0a11f">float?</td></tr>
     </tbody>
   </table>
   <div class="btn-row" style="margin-top:9px">
-    <button class="b-warn b-sm" id="btnMarkPress" disabled>我剛按了電源鍵</button>
-    <button class="b-ghost b-sm" id="btnReadId" disabled>重讀全部</button>
-  </div>
-  <div class="btn-row" style="margin-top:8px">
-    <button class="b-primary b-sm" id="btnClaim" disabled>0x0A06 &larr; 0x0A01 的 MAC</button>
-    <button class="b-ghost b-sm" id="btnClaimZero" disabled>0x0A06 &larr; 6&times;00</button>
+    <button class="b-ghost b-sm" id="btnReadId" disabled>重讀</button>
+    <button class="b-primary b-sm" id="btnClaim" disabled>0x0A06 &larr; MAC</button>
   </div>
   <div class="btn-row" style="margin-top:8px">
     <button class="b-ghost b-sm" id="btnF30" disabled>0x0A30 &larr; 01</button>
     <button class="b-ghost b-sm" id="btnF40" disabled>0x0A40 &larr; 01</button>
-    <button class="b-ghost b-sm" id="btnF50" disabled>0x0A50 &larr; 01</button>
-  </div>
-  <div class="btn-row" style="margin-top:8px">
     <button class="b-ghost b-sm" id="btnF30z" disabled>0x0A30 &larr; 00</button>
     <button class="b-ghost b-sm" id="btnF40z" disabled>0x0A40 &larr; 00</button>
-    <button class="b-ghost b-sm" id="btnF50z" disabled>0x0A50 &larr; 00</button>
   </div>
-  <div class="dangerbox">
-    <b>0x0A01 / 0x0A02 / 0x0A03 全域禁寫。</b>
-    0x0A02 是 14 字元隨機 token（<span class="mono">9r3EaUDF4WPzFg</span>），
-    覆蓋掉可能讓裝置永久認不得自己。這三個特徵在掃頻和 raw console 都會被擋下來。
-  </div>
+  <div class="dangerbox"><b>0x0A01 / 0x0A02 / 0x0A03 全域禁寫。</b>0x0A02 是 14 字元 token，覆蓋掉可能讓裝置永久認不得自己。</div>
 </section>
 
-<!-- 3 CONTROL -->
+<!-- 3 A50 PROBE -->
 <section>
-  <h2>3 · 馬達控制</h2>
-  <div>
-    <label>指令寫入的特徵</label>
-    <select id="cmdSel"><option>（連線後填入）</option></select>
+  <h2>3 · 0x0A50 指令通道探測 <span class="badge" id="probeBadge">—</span></h2>
+  <div class="hint">
+    實測：寫 <span class="mono">01 00 00</span> → 回 <span class="mono">06 FF 06 00</span>；寫 <span class="mono">01 46 46</span> → 回 <span class="mono">06 FF 02 00</span>，
+    兩次都在 30ms 內被斷線。<b>0x0A50 是全裝置唯一會回話的端點</b>，<span class="mono">FF</span> 很可能是「未授權」錯誤碼。<br>
+    目標：找出哪個 opcode 回的<b>不是</b> <span class="mono">FF</span>。
   </div>
+  <div class="row">
+    <div><label>frame 樣板（<code>{op}</code> 會被代入）</label><input type="text" id="probeTpl" value="{op} 00 00"></div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div><label>opcode 從</label><input type="text" id="probeFrom" value="00"></div>
+    <div><label>到</label><input type="text" id="probeTo" value="1F"></div>
+    <div><label>等回應 ms</label><input type="number" id="probeWait" value="700" min="200" step="100"></div>
+  </div>
+  <div class="btn-row" style="margin-top:9px">
+    <button class="b-primary" id="btnProbe" disabled>開始探測</button>
+    <button class="b-danger" id="btnProbeStop" disabled>停止</button>
+    <button class="b-ghost b-sm" id="btnProbeClear">清空結果</button>
+  </div>
+  <div class="sweepnow" id="probeNow" style="display:none">
+    正在試：<b id="probeLabel">—</b><br>
+    <span class="note" id="probeProg"></span>
+  </div>
+  <table style="margin-top:10px">
+    <thead><tr><th style="width:80px">寫入</th><th>0x0A50 回應</th><th style="width:50px">連線</th></tr></thead>
+    <tbody id="probeBody"></tbody>
+  </table>
+  <p class="note">每次寫入後等回應，若被斷線就自動重連再繼續。整輪 0x00–0x1F 約需 2–3 分鐘。</p>
+</section>
+
+<!-- 4 CONTROL -->
+<section>
+  <h2>4 · 馬達控制</h2>
+  <div><label>指令特徵</label><select id="cmdSel"><option>（連線後填入）</option></select></div>
   <div style="margin-top:9px">
-    <label>指令 frame（<code>{m}</code>=主馬達 <code>{v}</code>=震動，0–100）</label>
+    <label>frame（<code>{m}</code>=主馬達 <code>{v}</code>=震動）</label>
     <select id="frameSel">
       <option value="01 {m} {v}">01 {m} {v}</option>
       <option value="{m} {v}">{m} {v}</option>
@@ -186,8 +231,6 @@
       <option value="{m} {v} 00 00">{m} {v} 00 00</option>
       <option value="01 00 {m} {v}">01 00 {m} {v}</option>
       <option value="0A {m} {v}">0A {m} {v}</option>
-      <option value="01 {m}">01 {m}</option>
-      <option value="{m}">{m}</option>
       <option value="__custom__">自訂…</option>
     </select>
     <input type="text" id="frameCustom" class="hide" style="margin-top:7px" placeholder="例如 0A 01 {m} {v}">
@@ -206,13 +249,11 @@
     <button class="b-danger" id="btnStop" disabled>STOP</button>
   </div>
 
-  <h2 style="margin:16px 0 8px">安全掃頻</h2>
-  <p class="note" style="margin:0 0 8px">預設只掃 <span class="mono">FFF1 / FFF2 / 0A50</span>。
-  其他特徵要自己勾才會納入 —— 上一版把 MAC 和 token 也灌了垃圾，這是玩具中途關機的原因。</p>
+  <h2 style="margin:16px 0 8px">掃頻</h2>
   <div id="sweepPicks"></div>
   <div class="row" style="margin-top:9px">
-    <div><label>每組停留 ms</label><input type="number" id="sweepDwell" value="1400" min="400" step="100"></div>
-    <div><label>測試強度 %</label><input type="number" id="sweepLevel" value="70" min="1" max="100"></div>
+    <div><label>停留 ms</label><input type="number" id="sweepDwell" value="1400" min="400" step="100"></div>
+    <div><label>強度 %</label><input type="number" id="sweepLevel" value="70" min="1" max="100"></div>
   </div>
   <div class="btn-row" style="margin-top:9px">
     <button class="b-primary" id="btnSweep" disabled>開始掃頻</button>
@@ -221,15 +262,15 @@
   <div class="sweepnow" id="sweepNow" style="display:none">
     正在試：<b id="sweepLabel">—</b><br>
     <span class="note" id="sweepProg"></span>
-    <button class="b-ok" id="btnSweepMark" style="width:100%;margin-top:9px">就是這個！鎖定這組</button>
+    <button class="b-ok" id="btnSweepMark" style="width:100%;margin-top:9px">就是這個！鎖定</button>
   </div>
 </section>
 
-<!-- 4 SENSORS -->
+<!-- 5 SENSORS -->
 <section>
-  <h2>4 · 感測器 <span class="badge" id="sensBadge">—</span></h2>
+  <h2>5 · 感測器 <span class="badge" id="sensBadge">—</span></h2>
   <div class="grid3">
-    <div class="stat" id="cTemp"><div class="k">溫度 °C</div><div class="v" id="vTemp">—</div><div class="r" id="rTemp">0x0A0D</div></div>
+    <div class="stat" id="cTemp"><div class="k">溫度 °C</div><div class="v" id="vTemp">—</div><div class="r">0x0A0D</div></div>
     <div class="stat" id="cPress"><div class="k">氣壓 mbar</div><div class="v" id="vPress">—</div><div class="r">0x0A0D</div></div>
     <div class="stat" id="cVolt"><div class="k">電池 mV</div><div class="v" id="vVolt">—</div><div class="r">0x0A0A</div></div>
   </div>
@@ -239,32 +280,20 @@
     <div class="stat" id="cAz"><div class="k">Accel Z</div><div class="v" id="vAz">—</div></div>
   </div>
   <div class="grid3" style="margin-top:9px">
-    <div class="stat" id="cA6"><div class="k">0x0A0C byte6</div><div class="v" id="vA6">—</div><div class="r">深度？</div></div>
-    <div class="stat" id="cBatt"><div class="k">電量 %</div><div class="v" id="vBatt">—</div><div class="r">0x2A19</div></div>
+    <div class="stat" id="cA6"><div class="k">0x0A0C byte6</div><div class="v" id="vA6">—</div></div>
+    <div class="stat" id="cBatt"><div class="k">電量 %</div><div class="v" id="vBatt">—</div></div>
     <div class="stat" id="cBtn"><div class="k">0x0AA4</div><div class="v" id="vBtn">—</div><div class="r">需輪詢</div></div>
   </div>
-  <div class="grid2" style="margin-top:9px">
-    <div class="stat" id="cF1"><div class="k">0x0A11 float A</div><div class="v" id="vF1" style="font-size:15px">—</div></div>
-    <div class="stat" id="cF2"><div class="k">0x0A11 float B</div><div class="v" id="vF2" style="font-size:15px">—</div></div>
-  </div>
   <div class="btn-row" style="margin-top:10px">
-    <button class="b-ghost b-sm" id="btnResub" disabled>重新訂閱</button>
     <button class="b-ghost b-sm" id="btnPoll" disabled>輪詢 0x0AA4 開/關</button>
+    <button class="b-ghost b-sm" id="btnDump" disabled>Read 全部</button>
   </div>
-
-  <h2 style="margin:16px 0 8px">原始 notify 監看</h2>
-  <table>
+  <table style="margin-top:10px">
     <thead><tr><th style="width:62px">UUID</th><th style="width:78px">解讀</th><th>值</th><th class="n" style="width:38px">#</th></tr></thead>
     <tbody id="monBody"></tbody>
   </table>
-</section>
-
-<!-- 5 DUMP -->
-<section>
-  <h2>5 · 全特徵 dump <span class="badge" id="gattBadge">—</span></h2>
-  <div class="btn-row"><button class="b-ghost b-sm" id="btnDump" disabled>Read 所有可讀特徵</button></div>
-  <table style="margin-top:9px">
-    <thead><tr><th style="width:62px">UUID</th><th style="width:42px">屬性</th><th>hex / ascii</th></tr></thead>
+  <table style="margin-top:10px">
+    <thead><tr><th style="width:62px">UUID</th><th style="width:42px">屬性</th><th>dump</th></tr></thead>
     <tbody id="dumpBody"></tbody>
   </table>
 </section>
@@ -272,10 +301,7 @@
 <!-- 6 RAW -->
 <section>
   <h2>6 · Raw hex console</h2>
-  <div>
-    <label>目標特徵（4 碼短碼如 fff2，或完整 UUID）</label>
-    <input type="text" id="rawUuid" value="fff2">
-  </div>
+  <div><label>目標特徵（短碼如 0a50 或完整 UUID）</label><input type="text" id="rawUuid" value="0a50"></div>
   <div style="margin-top:8px"><label>Hex bytes</label><input type="text" id="rawHex" value="01 46 46"></div>
   <div class="btn-row" style="margin-top:9px">
     <button class="b-primary b-sm" id="btnRawWrite" disabled>Write</button>
@@ -286,7 +312,7 @@
 
 <section>
   <h2>Log <button class="b-ghost b-sm" id="btnCopyLog" style="margin-left:auto;flex:none">Copy</button></h2>
-  <p class="note" style="margin:0 0 7px">notify 只在<b>數值改變時</b>才記一行，不再洗版。</p>
+  <div class="switch"><input type="checkbox" id="optQuiet" checked><span>安靜模式（不記錄感測器串流，只記事件）</span></div>
   <div id="log"></div>
 </section>
 
@@ -296,61 +322,59 @@
 "use strict";
 
 function $(id){ return document.getElementById(id); }
-function pad2(n){ return (n<16?'0':'') + n.toString(16); }
+function pad2(n){ return (n<16?'0':'')+n.toString(16); }
 function hexOf(dv){ var a=[],i; for(i=0;i<dv.byteLength;i++) a.push(pad2(dv.getUint8(i)).toUpperCase()); return a.join(' '); }
 function bytesOf(dv){ var a=[],i; for(i=0;i<dv.byteLength;i++) a.push(dv.getUint8(i)); return a; }
 function hexArr(a){ return a.map(function(b){ return pad2(b).toUpperCase(); }).join(' '); }
-function u16uuid(c){ return '0000' + ('000'+c.toString(16)).slice(-4) + '-0000-1000-8000-00805f9b34fb'; }
+function u16uuid(c){ return '0000'+('000'+c.toString(16)).slice(-4)+'-0000-1000-8000-00805f9b34fb'; }
 function shortOf(u){
   var s=String(u).toLowerCase();
-  if(s.length!==36 || s.slice(8)!=='-0000-1000-8000-00805f9b34fb' || s.slice(0,4)!=='0000') return null;
+  if(s.length!==36||s.slice(8)!=='-0000-1000-8000-00805f9b34fb'||s.slice(0,4)!=='0000') return null;
   return parseInt(s.slice(4,8),16);
 }
-function shortLabel(u){ var s=shortOf(u); return s===null? u.slice(0,8) : '0x'+('000'+s.toString(16)).slice(-4).toUpperCase(); }
+function shortLabel(u){ var s=shortOf(u); return s===null?u.slice(0,8):'0x'+('000'+s.toString(16)).slice(-4).toUpperCase(); }
 function delay(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
-function asciiOf(dv){
-  var a='',i,b;
-  for(i=0;i<dv.byteLength;i++){ b=dv.getUint8(i); a += (b>=32&&b<127)?String.fromCharCode(b):'\u00b7'; }
-  return a;
-}
+function asciiOf(dv){ var a='',i,b; for(i=0;i<dv.byteLength;i++){ b=dv.getUint8(i); a+=(b>=32&&b<127)?String.fromCharCode(b):'\u00b7'; } return a; }
 
-var logEl = $('log');
+var logEl=$('log');
 function log(m){
   var t=new Date();
   var ts=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2)+':'+('0'+t.getSeconds()).slice(-2)
         +'.'+('00'+t.getMilliseconds()).slice(-3);
-  logEl.textContent += ts+'  '+m+'\n';
-  logEl.scrollTop = logEl.scrollHeight;
+  logEl.textContent+=ts+'  '+m+'\n';
+  logEl.scrollTop=logEl.scrollHeight;
 }
-$('btnCopyLog').addEventListener('click', function(){
+$('btnCopyLog').addEventListener('click',function(){
   var ta=document.createElement('textarea'); ta.value=logEl.textContent;
   document.body.appendChild(ta); ta.select();
   try{ document.execCommand('copy'); log('(log copied)'); }catch(e){}
   document.body.removeChild(ta);
 });
 
-/* ---------- identity / safety ---------- */
 var SVC_LELO=u16uuid(0xfff0), SVC_DEVINFO=u16uuid(0x180a), SVC_BATT=u16uuid(0x180f);
-/* Never write to these — MAC, device token, and a read-only blob.
-   v2 swept them and the toy powered off mid-sweep. */
-var WRITE_BLOCKED = [0x0a01, 0x0a02, 0x0a03];
+var C_KEY=0x0a11, C_A50=0x0a50;
+var WRITE_BLOCKED=[0x0a01,0x0a02,0x0a03];
+/* 0x0A50 kicks the link on every write, so it is opt-in only for the sweep. */
+var SWEEP_DEFAULT=[0xfff1,0xfff2];
+var SWEEP_RISKY=[0x0a50];
+var SWEEP_FRAMES=['01 {m} {v}','{m} {v}','01 {m} {v} 00','{m} {v} 00 00','01 00 {m} {v}','0A {m} {v}','01 {m}','{m}'];
+/* sensor streams — never logged in quiet mode */
+var QUIET_CHARS=[0x0a0a,0x0a0c,0x0a0d,0x2a19];
+
 function isBlocked(c){ var s=shortOf(c.uuid); return s!==null && WRITE_BLOCKED.indexOf(s)>=0; }
-
-var SWEEP_DEFAULT = [0xfff1, 0xfff2, 0x0a50];
-var SWEEP_FRAMES = ['01 {m} {v}','{m} {v}','01 {m} {v} 00','{m} {v} 00 00','01 00 {m} {v}','0A {m} {v}','01 {m}','{m}'];
-
 function optionalServices(){
   var l=[SVC_LELO,SVC_DEVINFO,SVC_BATT];
   [0xfff1,0xfff2,0xfff3,0xfff4,0xffe0,0x0a00,0x0aa0].forEach(function(c){ l.push(u16uuid(c)); });
-  l.push('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
   return l;
 }
 
-var S = {
+var S={
   device:null, server:null, chars:[], byShort:{}, byUuid:{},
   notifyChars:[], writeChars:[], cmdChar:null, connected:false,
-  mutex:Promise.resolve(), main:0, vib:0, pollTimer:null, sweep:null,
-  lastWrite:null, connectedAt:0
+  mutex:Promise.resolve(), main:0, vib:0, pollTimer:null,
+  sweep:null, probe:null, lastWrite:null, connectedAt:0,
+  key:null, keyAt:0, a50Last:null, a50At:0,
+  reconnecting:false, waiters:[]
 };
 function q(fn){ var r=S.mutex.then(fn,fn); S.mutex=r.catch(function(){}); return r; }
 function withTimeout(p,ms,l){
@@ -367,38 +391,56 @@ function props(c){
   return o.join('');
 }
 function enableAll(on){
-  ['btnDisconnect','btnMarkPress','btnReadId','btnClaim','btnClaimZero','btnF30','btnF40','btnF50',
-   'btnF30z','btnF40z','btnF50z','btnPulse','btnStop','btnSweep','btnResub','btnPoll','btnDump',
-   'btnRawWrite','btnRawRead'].forEach(function(i){ $(i).disabled = !on; });
+  ['btnDisconnect','btnMarkPress','btnReadId','btnClaim','btnF30','btnF40','btnF30z','btnF40z',
+   'btnPulse','btnStop','btnSweep','btnProbe','btnPoll','btnDump','btnRawWrite','btnRawRead']
+   .forEach(function(i){ $(i).disabled=!on; });
+  refreshKeyButtons();
+}
+function refreshKeyButtons(){
+  var ok = S.connected && !!S.key;
+  ['btnEchoKey','btnEchoKey01','btnEchoKeyRev','btnKeyToA50','btnKeyToA06']
+    .forEach(function(i){ $(i).disabled = !ok; });
 }
 (function(){
   var m=[];
   if(!navigator.bluetooth) m.push('這個瀏覽器沒有 Web Bluetooth。');
-  if(location.protocol!=='https:' && location.hostname!=='localhost') m.push('需要 HTTPS。');
+  if(location.protocol!=='https:'&&location.hostname!=='localhost') m.push('需要 HTTPS。');
   if(m.length){ $('envWarn').style.display='block'; $('envWarn').innerHTML=m.join('<br>'); }
 })();
 
-/* ==================== CONNECT ==================== */
-$('btnConnect').addEventListener('click', function(){
-  connect().catch(function(e){ setBadge($('connBadge'),'Failed','err'); log('CONNECT FAILED: '+(e&&e.message?e.message:e)); });
+/* ==================== CONNECT / RECONNECT ==================== */
+$('btnConnect').addEventListener('click',function(){
+  pickAndConnect().catch(function(e){
+    setBadge($('connBadge'),'Failed','err');
+    log('CONNECT FAILED: '+(e&&e.message?e.message:e));
+  });
 });
-$('btnDisconnect').addEventListener('click', function(){
-  if(S.device && S.device.gatt && S.device.gatt.connected) S.device.gatt.disconnect();
+$('btnDisconnect').addEventListener('click',function(){
+  $('optAutoRe').checked=false;
+  stopSweep(); stopProbe();
+  if(S.device&&S.device.gatt&&S.device.gatt.connected) S.device.gatt.disconnect();
   onDrop();
 });
 
-function connect(){
-  var t0=Date.now(), mode=$('scanMode').value, opts, opt=optionalServices();
+function pickAndConnect(){
+  var mode=$('scanMode').value, opts, opt=optionalServices();
   if(mode==='service')   opts={ filters:[{services:[SVC_LELO]}], optionalServices:opt };
   else if(mode==='name') opts={ filters:[{namePrefix:($('namePrefix').value||'F1')}], optionalServices:opt };
   else                   opts={ acceptAllDevices:true, optionalServices:opt };
   setBadge($('connBadge'),'Scanning…','busy');
   return navigator.bluetooth.requestDevice(opts).then(function(d){
-    S.device=d; log('picked: '+(d.name||'(no name)'));
+    S.device=d;
+    log('picked: '+(d.name||'(no name)'));
     d.addEventListener('gattserverdisconnected', onDrop);
-    setBadge($('connBadge'),'Connecting…','busy');
-    return withTimeout(d.gatt.connect(),30000,'gatt.connect');
-  }).then(function(srv){
+    return openLink();
+  });
+}
+
+/* connect + discover + subscribe using the already-picked device */
+function openLink(){
+  var t0=Date.now();
+  setBadge($('connBadge'),'Connecting…','busy');
+  return withTimeout(S.device.gatt.connect(),30000,'gatt.connect').then(function(srv){
     S.server=srv; S.connectedAt=Date.now();
     log('gatt.connect ok (+'+(Date.now()-t0)+'ms)');
     return discover();
@@ -406,119 +448,136 @@ function connect(){
     S.connected=true; enableAll(true);
     setBadge($('connBadge'),'Connected: '+(S.device.name||'?'),'on');
     return subscribeAll();
-  }).then(function(){ return dumpAll(); })
-    .then(function(){ return readIdentity(); })
-    .then(function(){
-      log('================================================');
-      log('>>> 實驗：不要按電源鍵，晾著看 0x0A11 會不會自己跳成非零');
-      log('================================================');
-    });
+  }).then(function(){
+    return readIdentity();
+  }).then(function(){
+    var w=S.waiters; S.waiters=[];
+    w.forEach(function(fn){ fn(); });
+  });
 }
 
 function onDrop(){
   if(!S.device) return;
-  var wasConn = S.connected;
+  var wasConn=S.connected;
   S.connected=false;
   if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; }
-  stopSweep();
-  if(wasConn){
-    log('*** DISCONNECTED after ' + ((Date.now()-S.connectedAt)/1000).toFixed(1) + 's ***');
-    if(S.lastWrite) log('*** 斷線前最後一次寫入: ' + S.lastWrite.uuid + ' <- ' + S.lastWrite.hex +
-                        '  (' + ((Date.now()-S.lastWrite.t)/1000).toFixed(1) + 's 前) ***');
-  }
   S.chars=[]; S.byShort={}; S.byUuid={}; S.notifyChars=[]; S.writeChars=[]; S.cmdChar=null;
   enableAll(false);
-  setBadge($('connBadge'),'Disconnected'); setBadge($('idBadge'),'—');
-  setBadge($('sensBadge'),'—'); setBadge($('gattBadge'),'—');
+  if(wasConn){
+    log('*** DISCONNECTED after '+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s ***');
+    if(S.lastWrite) log('***   斷線前最後寫入: '+S.lastWrite.uuid+' <- '+S.lastWrite.hex+
+                        '  ('+((Date.now()-S.lastWrite.t)/1000).toFixed(2)+'s 前) ***');
+  }
+  setBadge($('connBadge'),'Disconnected');
+  setBadge($('sensBadge'),'—');
   $('monBody').innerHTML=''; $('dumpBody').innerHTML=''; $('sweepPicks').innerHTML='';
+  if($('optAutoRe').checked && S.device && !S.reconnecting) reconnectLoop(1);
+}
+
+function reconnectLoop(attempt){
+  if(!$('optAutoRe').checked || !S.device){ S.reconnecting=false; return; }
+  S.reconnecting=true;
+  setBadge($('connBadge'),'重連中 #'+attempt,'busy');
+  delay(attempt===1?2200:3000).then(function(){
+    if(!$('optAutoRe').checked){ S.reconnecting=false; return; }
+    return openLink().then(function(){
+      S.reconnecting=false;
+      log('=== 自動重連成功（第 '+attempt+' 次嘗試）===');
+    });
+  }).catch(function(e){
+    log('reconnect #'+attempt+' failed: '+(e&&e.message?e.message:e));
+    if(attempt<12) reconnectLoop(attempt+1);
+    else { S.reconnecting=false; setBadge($('connBadge'),'重連放棄','err'); }
+  });
+}
+
+/* resolves once the link is up again (or immediately if it already is) */
+function waitConnected(timeoutMs){
+  if(S.connected) return Promise.resolve(true);
+  return new Promise(function(res){
+    var done=false;
+    var to=setTimeout(function(){ if(!done){ done=true; res(false); } },timeoutMs||45000);
+    S.waiters.push(function(){ if(!done){ done=true; clearTimeout(to); res(true); } });
+  });
 }
 
 function discover(){
   return S.server.getPrimaryServices().then(function(svcs){
     var chain=Promise.resolve(); S.chars=[];
-    log('services: '+svcs.length);
     svcs.forEach(function(svc){
       chain=chain.then(function(){
         return svc.getCharacteristics().then(function(cs){
-          var names=[];
           cs.forEach(function(c){
             S.chars.push(c); S.byUuid[c.uuid]=c;
             var sh=shortOf(c.uuid);
-            if(sh!==null && S.byShort[sh]===undefined) S.byShort[sh]=c;
-            names.push(shortLabel(c.uuid)+'['+props(c)+']');
+            if(sh!==null&&S.byShort[sh]===undefined) S.byShort[sh]=c;
           });
-          log('  '+svc.uuid+' → '+names.join(' '));
-        }, function(e){ log('  '+svc.uuid+' chars failed: '+e.message); });
+        },function(e){ log('  '+svc.uuid+' chars failed: '+e.message); });
       });
     });
     return chain;
   }).then(function(){
-    S.notifyChars = S.chars.filter(function(c){ return c.properties.notify||c.properties.indicate; });
-    S.writeChars  = S.chars.filter(function(c){
-      return (c.properties.write||c.properties.writeWithoutResponse) && !isBlocked(c);
+    S.byShort={}; S.byUuid={};
+    S.chars.forEach(function(c){
+      S.byUuid[c.uuid]=c;
+      var sh=shortOf(c.uuid);
+      if(sh!==null&&S.byShort[sh]===undefined) S.byShort[sh]=c;
     });
-    var blocked = S.chars.filter(isBlocked).length;
-    if(blocked) log('write-blocked: '+blocked+' 個身分特徵（0x0A01/0x0A02/0x0A03）已排除');
-
-    var sel=$('cmdSel'); sel.innerHTML='';
+    S.notifyChars=S.chars.filter(function(c){ return c.properties.notify||c.properties.indicate; });
+    S.writeChars =S.chars.filter(function(c){ return (c.properties.write||c.properties.writeWithoutResponse)&&!isBlocked(c); });
+    var sel=$('cmdSel'), keep=sel.value; sel.innerHTML='';
     S.writeChars.forEach(function(c){
       var o=document.createElement('option');
       o.value=c.uuid; o.textContent=shortLabel(c.uuid)+'  ['+props(c)+']';
       sel.appendChild(o);
     });
-    var pref = S.byShort[0xfff2] || S.byShort[0xfff1] || S.writeChars[0] || null;
-    if(pref){ sel.value=pref.uuid; S.cmdChar=pref; log('command char default → '+shortLabel(pref.uuid)); }
-    setBadge($('gattBadge'), S.chars.length+' chars');
+    var pref = S.byUuid[keep] || S.byShort[0xfff2] || S.byShort[0xfff1] || S.writeChars[0] || null;
+    if(pref){ sel.value=pref.uuid; S.cmdChar=pref; }
     buildMonitor(); buildSweepPicks();
   });
 }
-$('cmdSel').addEventListener('change', function(){
-  S.cmdChar = S.byUuid[this.value]||null;
+$('cmdSel').addEventListener('change',function(){
+  S.cmdChar=S.byUuid[this.value]||null;
   log('command char → '+(S.cmdChar?shortLabel(S.cmdChar.uuid):'none'));
 });
 
 /* ==================== R/W ==================== */
 function writeCh(c,bytes){
-  if(isBlocked(c)){
-    log('BLOCKED write to '+shortLabel(c.uuid)+' — 身分欄位受保護');
-    return Promise.reject(new Error('write blocked'));
-  }
+  if(isBlocked(c)){ log('BLOCKED write to '+shortLabel(c.uuid)); return Promise.reject(new Error('blocked')); }
   var buf=new Uint8Array(bytes), wantResp=$('optWriteResp').checked;
-  S.lastWrite = { uuid:shortLabel(c.uuid), hex:hexArr(bytes), t:Date.now() };
+  S.lastWrite={ uuid:shortLabel(c.uuid), hex:hexArr(bytes), t:Date.now() };
   return q(function(){
-    if(!wantResp && c.properties.writeWithoutResponse && c.writeValueWithoutResponse)
+    if(!wantResp&&c.properties.writeWithoutResponse&&c.writeValueWithoutResponse)
       return c.writeValueWithoutResponse(buf).catch(function(){ return c.writeValue(buf); });
     if(c.writeValueWithResponse) return c.writeValueWithResponse(buf).catch(function(){ return c.writeValue(buf); });
     return c.writeValue(buf);
   });
 }
 function readCh(c){ return q(function(){ return c.readValue(); }); }
+function writeShort(code,bytes,label){
+  var c=S.byShort[code];
+  if(!c){ log(label+': 0x'+code.toString(16)+' 不存在'); return Promise.reject(new Error('missing')); }
+  return writeCh(c,bytes).then(function(){
+    log(label+' → '+hexArr(bytes));
+  },function(e){ log(label+' FAILED: '+e.message); throw e; });
+}
 
-/* ==================== SENSOR DECODE ==================== */
-/* 0x0A0D : temp = u24BE(0..2)/100 degC , byte3 = 0xFF separator , press = u32BE(4..7) Pa
-   verified against three live samples and the SDK example values                      */
+/* ==================== SENSORS ==================== */
 function decode0A0D(dv){
-  if(dv.byteLength < 8) return null;
-  var t = (dv.getUint8(0)<<16 | dv.getUint8(1)<<8 | dv.getUint8(2)) / 100;
-  var p = dv.getUint32(4,false) / 100;
-  return { temp:t, press:p, sep:dv.getUint8(3) };
+  if(dv.byteLength<8) return null;
+  return { temp:(dv.getUint8(0)<<16|dv.getUint8(1)<<8|dv.getUint8(2))/100,
+           press:dv.getUint32(4,false)/100 };
 }
 function flash(id){
   var el=$(id); if(!el) return;
-  el.classList.add('live');
-  clearTimeout(el._ft);
+  el.classList.add('live'); clearTimeout(el._ft);
   el._ft=setTimeout(function(){ el.classList.remove('live'); },350);
 }
-function applySensor(c, dv){
+function applySensor(c,dv){
   var sh=shortOf(c.uuid);
   if(sh===0x0a0d){
     var d=decode0A0D(dv);
-    if(d){
-      $('vTemp').textContent=d.temp.toFixed(2);
-      $('vPress').textContent=d.press.toFixed(2);
-      $('rTemp').textContent='sep='+pad2(d.sep).toUpperCase();
-      flash('cTemp'); flash('cPress');
-    }
+    if(d){ $('vTemp').textContent=d.temp.toFixed(2); $('vPress').textContent=d.press.toFixed(2); flash('cTemp'); flash('cPress'); }
   } else if(sh===0x0a0a){
     if(dv.byteLength>=2){ $('vVolt').textContent=dv.getUint16(0,false); flash('cVolt'); }
   } else if(sh===0x0a0c){
@@ -529,23 +588,10 @@ function applySensor(c, dv){
       flash('cAx'); flash('cAy'); flash('cAz');
     }
     if(dv.byteLength>=7){ $('vA6').textContent=dv.getUint8(6); flash('cA6'); }
-  } else if(sh===0x2a19){
-    $('vBatt').textContent=dv.getUint8(0)+'%'; flash('cBatt');
-  } else if(sh===0x0aa4){
-    $('vBtn').textContent='0x'+pad2(dv.getUint8(0)).toUpperCase(); flash('cBtn');
-  } else if(sh===0x0a11){
-    if(dv.byteLength>=8){
-      $('vF1').textContent=dv.getFloat32(0,false).toFixed(3);
-      $('vF2').textContent=dv.getFloat32(4,false).toFixed(3);
-      $('v0a11id').textContent=hexOf(dv);
-      $('v0a11f').textContent=dv.getFloat32(0,false).toFixed(2)+' / '+dv.getFloat32(4,false).toFixed(2);
-      flash('cF1'); flash('cF2');
-      if(bytesOf(dv).some(function(b){ return b!==0; })) setBadge($('idBadge'),'0x0A11 非零','on');
-    }
-  }
+  } else if(sh===0x2a19){ $('vBatt').textContent=dv.getUint8(0)+'%'; flash('cBatt'); }
+  else if(sh===0x0aa4){ $('vBtn').textContent='0x'+pad2(dv.getUint8(0)).toUpperCase(); flash('cBtn'); }
 }
 
-/* ==================== MONITOR (change-only logging) ==================== */
 var INTERPS=['hex','u8','u16be','u16le','i16x3be','f32x2be','ascii','bits'];
 function interp(dv,mode){
   var i,a;
@@ -569,8 +615,8 @@ function buildMonitor(){
     var tr=document.createElement('tr');
     var t1=document.createElement('td'); t1.textContent=shortLabel(c.uuid);
     var t2=document.createElement('td');
-    var sel=document.createElement('select'); sel.className='mini';
-    sel.style.padding='3px 5px'; sel.style.fontSize='11px';
+    var sel=document.createElement('select');
+    sel.style.padding='3px 5px'; sel.style.fontSize='11px'; sel.style.borderRadius='6px';
     INTERPS.forEach(function(m){ var o=document.createElement('option'); o.value=m; o.textContent=m; sel.appendChild(o); });
     var sh=shortOf(c.uuid);
     if(sh===0x0a0c) sel.value='i16x3be';
@@ -586,22 +632,22 @@ function buildMonitor(){
   });
 }
 function onNotifyValue(c,dv){
-  var r=monRows[c.uuid], h=hexOf(dv);
+  var r=monRows[c.uuid], h=hexOf(dv), sh=shortOf(c.uuid);
   if(r){
     r.count++;
-    r.val.textContent = interp(dv,r.sel.value) + (r.sel.value!=='hex' ? '   ['+h+']' : '');
+    r.val.textContent=interp(dv,r.sel.value)+(r.sel.value!=='hex'?'   ['+h+']':'');
     r.n.textContent=r.count;
-    r.tr.classList.add('hot');
-    clearTimeout(r.timer);
+    r.tr.classList.add('hot'); clearTimeout(r.timer);
     r.timer=setTimeout(function(){ r.tr.classList.remove('hot'); },400);
-    /* only log when the value actually changed */
-    if(r.lastHex !== h){
-      r.lastHex = h;
-      log('notify ' + shortLabel(c.uuid) + ' = ' + h + '   (+' +
-          ((Date.now()-S.connectedAt)/1000).toFixed(1) + 's)');
+    if(r.lastHex!==h){
+      r.lastHex=h;
+      var quiet=$('optQuiet').checked && QUIET_CHARS.indexOf(sh)>=0;
+      if(!quiet) log('notify '+shortLabel(c.uuid)+' = '+h+'   (+'+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s)');
     }
   }
   applySensor(c,dv);
+  if(sh===C_KEY) onKeyValue(dv);
+  if(sh===C_A50) onA50Value(dv);
 }
 function subscribeAll(){
   var chain=Promise.resolve(), ok=0, fail=0;
@@ -609,70 +655,176 @@ function subscribeAll(){
     chain=chain.then(function(){
       return q(function(){ return c.startNotifications(); }).then(function(){
         ok++;
-        c.addEventListener('characteristicvaluechanged', function(e){ onNotifyValue(c,e.target.value); });
-        log('notify ON  '+shortLabel(c.uuid));
-      }, function(e){ fail++; log('notify FAIL '+shortLabel(c.uuid)+': '+e.message); });
+        c.addEventListener('characteristicvaluechanged',function(e){ onNotifyValue(c,e.target.value); });
+      },function(){ fail++; });
     });
   });
-  return chain.then(function(){ setBadge($('sensBadge'), ok+' on / '+fail+' fail', ok?'on':'err'); });
+  return chain.then(function(){ setBadge($('sensBadge'),ok+' on / '+fail+' fail',ok?'on':'err'); });
 }
-$('btnResub').addEventListener('click', function(){ subscribeAll(); });
-$('btnPoll').addEventListener('click', function(){
+$('btnPoll').addEventListener('click',function(){
   if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; log('polling off'); return; }
-  var c=S.byShort[0x0aa4];
-  if(!c){ log('0x0AA4 不存在'); return; }
   S.pollTimer=setInterval(function(){
-    if(S.connected) readCh(c).then(function(v){ onNotifyValue(c,v); },function(){});
+    var c=S.byShort[0x0aa4];
+    if(S.connected&&c) readCh(c).then(function(v){ onNotifyValue(c,v); },function(){});
   },300);
   log('polling 0x0AA4 every 300ms');
 });
 
+/* ==================== KEY CAPTURE ==================== */
+function onKeyValue(dv){
+  var h=hexOf(dv), b=bytesOf(dv);
+  $('wlVal').textContent=h;
+  $('wlN').textContent=(+$('wlN').textContent)+1;
+  var nonzero=b.some(function(x){ return x!==0; });
+  if(nonzero && !S.key){
+    S.key=b; S.keyAt=Date.now();
+    $('keyVal').textContent=hexArr(b);
+    var f='';
+    try{ f=' · float32BE: '+dv.getFloat32(0,false).toFixed(3)+' , '+dv.getFloat32(4,false).toFixed(3); }catch(e){}
+    $('keyMeta').textContent='連線後 +'+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s'+f;
+    setBadge($('keyBadge'),'已鎖定','on');
+    log('#### KEY CAPTURED  0x0A11 = '+hexArr(b)+'  (+'+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s) ####');
+    refreshKeyButtons();
+  }
+}
+function onA50Value(dv){
+  var h=hexOf(dv);
+  S.a50Last=bytesOf(dv); S.a50At=Date.now();
+  $('a50Val').textContent=h;
+  $('a50N').textContent=(+$('a50N').textContent)+1;
+  if(dv.byteLength>1) log('>>> 0x0A50 RESPONSE: '+h);
+}
+$('btnMarkPress').addEventListener('click',function(){
+  log('######## 使用者按下電源鍵 (+'+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s) ########');
+});
+$('btnClearKey').addEventListener('click',function(){
+  S.key=null; $('keyVal').textContent='—'; $('keyMeta').textContent='';
+  setBadge($('keyBadge'),'等待'); refreshKeyButtons(); log('key cleared');
+});
+function useKey(transform,target,label){
+  if(!S.key){ log('還沒鎖到金鑰'); return; }
+  var b=transform(S.key.slice());
+  var c=S.byShort[target];
+  if(!c){ log('0x'+target.toString(16)+' 不存在'); return; }
+  writeCh(c,b).then(function(){
+    log('KEY '+label+' → '+shortLabel(c.uuid)+' <- '+hexArr(b));
+    return delay(400).then(readIdentity);
+  },function(e){ log('KEY '+label+' FAILED: '+e.message); });
+}
+$('btnEchoKey').addEventListener('click',   function(){ useKey(function(b){return b;},C_KEY,'echo'); });
+$('btnEchoKey01').addEventListener('click', function(){ useKey(function(b){b[0]=1;return b;},C_KEY,'byte0=01'); });
+$('btnEchoKeyRev').addEventListener('click',function(){ useKey(function(b){return b.reverse();},C_KEY,'reversed'); });
+$('btnKeyToA50').addEventListener('click',  function(){ useKey(function(b){return b;},C_A50,'→0A50'); });
+$('btnKeyToA06').addEventListener('click',  function(){ useKey(function(b){return b.slice(0,6);},0x0a06,'→0A06(6B)'); });
+
 /* ==================== IDENTITY ==================== */
-var ID_CELLS = [[0x0a01,'v0a01'],[0x0a02,'v0a02'],[0x0a03,'v0a03'],[0x0a06,'v0a06'],
-                [0x0a30,'v0a30'],[0x0a40,'v0a40'],[0x0a50,'v0a50'],[0x0a11,'v0a11id']];
+var ID_CELLS=[[0x0a01,'v0a01'],[0x0a02,'v0a02'],[0x0a03,'v0a03'],[0x0a06,'v0a06'],[0x0a30,'v0a30'],[0x0a40,'v0a40']];
 function readIdentity(){
   var chain=Promise.resolve();
   ID_CELLS.forEach(function(p){
     var c=S.byShort[p[0]];
-    if(!c || !c.properties.read){ $(p[1]).textContent='absent'; return; }
+    if(!c||!c.properties.read){ $(p[1]).textContent='absent'; return; }
     chain=chain.then(function(){
       return readCh(c).then(function(v){
-        var txt=hexOf(v), a=asciiOf(v);
-        if(/^[\x20-\x7e]+$/.test(a) && a.length>3) txt += '  "'+a+'"';
-        $(p[1]).textContent=txt;
-      }, function(e){ $(p[1]).textContent='ERR '+e.message; });
+        var t=hexOf(v), a=asciiOf(v);
+        if(/^[\x20-\x7e]+$/.test(a)&&a.length>3) t+='  "'+a+'"';
+        $(p[1]).textContent=t;
+      },function(e){ $(p[1]).textContent='ERR'; });
     });
   });
   return chain;
 }
-$('btnReadId').addEventListener('click', function(){ readIdentity(); });
-$('btnMarkPress').addEventListener('click', function(){
-  log('########  使用者按下電源鍵  (+'+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s)  ########');
-});
-function writeShort(code, bytes, label){
-  var c=S.byShort[code];
-  if(!c){ log(label+': 0x'+code.toString(16)+' 不存在'); return; }
-  writeCh(c,bytes).then(function(){
-    log(label+' → '+hexArr(bytes));
-    return readIdentity();
-  }, function(e){ log(label+' FAILED: '+e.message); });
-}
-$('btnClaim').addEventListener('click', function(){
+$('btnReadId').addEventListener('click',function(){ readIdentity(); });
+$('btnClaim').addEventListener('click',function(){
   var mac=S.byShort[0x0a01];
   if(!mac){ log('0x0A01 不存在'); return; }
   readCh(mac).then(function(v){
     var b=bytesOf(v);
-    log('MAC read = '+hexArr(b));
-    writeShort(0x0a06, b, '0x0A06 ← MAC');
-  }, function(e){ log('MAC read failed: '+e.message); });
+    log('MAC = '+hexArr(b));
+    return writeShort(0x0a06,b,'0x0A06 ← MAC').then(function(){ return delay(400).then(readIdentity); });
+  }).catch(function(e){ log('claim failed: '+e.message); });
 });
-$('btnClaimZero').addEventListener('click', function(){ writeShort(0x0a06,[0,0,0,0,0,0],'0x0A06 ← 零'); });
-$('btnF30').addEventListener('click',  function(){ writeShort(0x0a30,[1],'0x0A30 ← 01'); });
-$('btnF40').addEventListener('click',  function(){ writeShort(0x0a40,[1],'0x0A40 ← 01'); });
-$('btnF50').addEventListener('click',  function(){ writeShort(0x0a50,[1],'0x0A50 ← 01'); });
-$('btnF30z').addEventListener('click', function(){ writeShort(0x0a30,[0],'0x0A30 ← 00'); });
-$('btnF40z').addEventListener('click', function(){ writeShort(0x0a40,[0],'0x0A40 ← 00'); });
-$('btnF50z').addEventListener('click', function(){ writeShort(0x0a50,[0],'0x0A50 ← 00'); });
+$('btnF30').addEventListener('click', function(){ writeShort(0x0a30,[1],'0x0A30←01').then(function(){return delay(400).then(readIdentity);},function(){}); });
+$('btnF40').addEventListener('click', function(){ writeShort(0x0a40,[1],'0x0A40←01').then(function(){return delay(400).then(readIdentity);},function(){}); });
+$('btnF30z').addEventListener('click',function(){ writeShort(0x0a30,[0],'0x0A30←00').then(function(){return delay(400).then(readIdentity);},function(){}); });
+$('btnF40z').addEventListener('click',function(){ writeShort(0x0a40,[0],'0x0A40←00').then(function(){return delay(400).then(readIdentity);},function(){}); });
+
+/* ==================== 0x0A50 PROBE ==================== */
+function parseHexByte(s){ var n=parseInt((s||'').trim().replace(/^0x/i,''),16); return isNaN(n)?0:(n&0xff); }
+function buildOp(tpl,op){
+  var out=[];
+  tpl.trim().split(/\s+/).forEach(function(tok){
+    if(tok==='{op}') out.push(op&0xff);
+    else { var n=parseInt(tok,16); if(!isNaN(n)) out.push(n&0xff); }
+  });
+  return out;
+}
+$('btnProbeClear').addEventListener('click',function(){ $('probeBody').innerHTML=''; });
+$('btnProbe').addEventListener('click',startProbe);
+$('btnProbeStop').addEventListener('click',stopProbe);
+
+function startProbe(){
+  var from=parseHexByte($('probeFrom').value), to=parseHexByte($('probeTo').value);
+  if(to<from){ var t=from; from=to; to=t; }
+  S.probe={ op:from, to:to, tpl:$('probeTpl').value||'{op} 00 00', stop:false };
+  $('probeNow').style.display='block';
+  $('btnProbe').disabled=true; $('btnProbeStop').disabled=false;
+  $('optAutoRe').checked=true;
+  log('=== PROBE 0x0A50 : opcode 0x'+pad2(from).toUpperCase()+'–0x'+pad2(to).toUpperCase()+
+      '  樣板 "'+S.probe.tpl+'" ===');
+  probeStep();
+}
+function stopProbe(){
+  if(S.probe) S.probe.stop=true;
+  S.probe=null;
+  $('probeNow').style.display='none';
+  $('btnProbe').disabled=!S.connected; $('btnProbeStop').disabled=true;
+}
+function probeStep(){
+  var p=S.probe;
+  if(!p||p.stop) return;
+  if(p.op>p.to){ log('=== PROBE 完成 ==='); stopProbe(); return; }
+  var bytes=buildOp(p.tpl,p.op);
+  var opLabel='0x'+pad2(p.op).toUpperCase();
+  $('probeLabel').textContent=hexArr(bytes);
+  $('probeProg').textContent='opcode '+opLabel+' / 0x'+pad2(p.to).toUpperCase();
+
+  waitConnected(60000).then(function(ok){
+    if(!ok||!S.probe||S.probe.stop) return null;
+    var c=S.byShort[C_A50];
+    if(!c){ log('0x0A50 不存在'); stopProbe(); return null; }
+    var before=S.a50At;
+    setBadge($('probeBadge'),opLabel,'busy');
+    return writeCh(c,bytes).then(function(){ return true; },function(e){
+      log('probe write err @'+opLabel+': '+e.message); return false;
+    }).then(function(){
+      return delay(Math.max(200,+$('probeWait').value||700));
+    }).then(function(){
+      var got = (S.a50At>before) ? hexArr(S.a50Last) : '(no response)';
+      var alive = S.connected;
+      addProbeRow(hexArr(bytes), got, alive);
+      log('probe '+opLabel+' <- '+hexArr(bytes)+'  →  '+got+(alive?'':'  [斷線]'));
+      return null;
+    });
+  }).then(function(){
+    if(!S.probe||S.probe.stop) return;
+    S.probe.op++;
+    /* if the write killed the link, wait for the auto-reconnect before moving on */
+    if(!S.connected) return waitConnected(60000).then(function(){ return delay(600); }).then(probeStep);
+    return delay(200).then(probeStep);
+  });
+}
+function addProbeRow(sent,got,alive){
+  var tr=document.createElement('tr');
+  var a=document.createElement('td'); a.textContent=sent;
+  var b=document.createElement('td'); b.className='val'; b.textContent=got;
+  var c=document.createElement('td'); c.textContent=alive?'ok':'斷';
+  if(!alive) c.className='drop';
+  /* highlight anything that is NOT the FF rejection */
+  if(got.indexOf('FF')<0 && got!=='(no response)'){ b.style.color='var(--warn)'; b.style.fontWeight='700'; }
+  tr.appendChild(a); tr.appendChild(b); tr.appendChild(c);
+  $('probeBody').appendChild(tr);
+}
 
 /* ==================== MOTOR ==================== */
 function frameTpl(){ var v=$('frameSel').value; return v==='__custom__'?($('frameCustom').value||'01 {m} {v}'):v; }
@@ -685,50 +837,50 @@ function buildFrame(tpl,m,v){
   });
   return out;
 }
-$('frameSel').addEventListener('change', function(){ $('frameCustom').classList.toggle('hide', this.value!=='__custom__'); });
-
+$('frameSel').addEventListener('change',function(){ $('frameCustom').classList.toggle('hide',this.value!=='__custom__'); });
 var motorBusy=false, motorDirty=false, lastLogged='';
 function scheduleMotors(){ motorDirty=true; pumpMotors(); }
 function pumpMotors(){
   if(motorBusy||!motorDirty||!S.connected||!S.cmdChar) return;
   motorDirty=false; motorBusy=true;
-  var m=S.main, v=S.vib, bytes=buildFrame(frameTpl(),m,v);
+  var m=S.main,v=S.vib,bytes=buildFrame(frameTpl(),m,v);
   writeCh(S.cmdChar,bytes).then(function(){
     var line=hexArr(bytes);
     if(line!==lastLogged){ lastLogged=line; log('motor -> '+line+'  (m='+m+'% v='+v+'%)'); }
-  }, function(e){ log('motor write failed: '+e.message); })
+  },function(e){ log('motor write failed: '+e.message); })
   .then(function(){ motorBusy=false; setTimeout(pumpMotors,40); });
 }
 function setMain(n){ S.main=Math.max(0,Math.min(100,n|0)); $('sMain').value=S.main; $('lblMain').textContent=S.main; }
 function setVib(n){ S.vib=Math.max(0,Math.min(100,n|0)); $('sVib').value=S.vib; $('lblVib').textContent=S.vib; }
-$('sMain').addEventListener('input', function(){ setMain(+this.value); if($('optLink').checked) setVib(S.main); scheduleMotors(); });
-$('sVib').addEventListener('input',  function(){ setVib(+this.value);  if($('optLink').checked) setMain(S.vib); scheduleMotors(); });
-$('btnPulse').addEventListener('click', function(){
+$('sMain').addEventListener('input',function(){ setMain(+this.value); if($('optLink').checked) setVib(S.main); scheduleMotors(); });
+$('sVib').addEventListener('input', function(){ setVib(+this.value);  if($('optLink').checked) setMain(S.vib); scheduleMotors(); });
+$('btnPulse').addEventListener('click',function(){
   setMain(60); setVib(60); scheduleMotors();
   setTimeout(function(){ setMain(0); setVib(0); scheduleMotors(); },2000);
 });
-$('btnStop').addEventListener('click', function(){
+$('btnStop').addEventListener('click',function(){
   stopSweep(); setMain(0); setVib(0); scheduleMotors();
   if(S.cmdChar) writeCh(S.cmdChar,[0x01,0xFF]).then(function(){ log('STOP -> 01 FF'); },function(){});
 });
 
-/* ==================== SAFE SWEEP ==================== */
+/* ==================== SWEEP ==================== */
 function buildSweepPicks(){
   var host=$('sweepPicks'); host.innerHTML='';
   S.writeChars.forEach(function(c){
     var sh=shortOf(c.uuid);
-    var lab=document.createElement('label'); lab.className='chk';
+    var risky=SWEEP_RISKY.indexOf(sh)>=0;
+    var lab=document.createElement('label'); lab.className='chk'+(risky?' warn':'');
     var cb=document.createElement('input'); cb.type='checkbox';
-    cb.checked = (sh!==null && SWEEP_DEFAULT.indexOf(sh)>=0);
-    cb.setAttribute('data-uuid', c.uuid);
+    cb.checked=(sh!==null&&SWEEP_DEFAULT.indexOf(sh)>=0);
+    cb.setAttribute('data-uuid',c.uuid);
     lab.appendChild(cb);
-    lab.appendChild(document.createTextNode(shortLabel(c.uuid)));
+    lab.appendChild(document.createTextNode(shortLabel(c.uuid)+(risky?' 會斷線':'')));
     host.appendChild(lab);
   });
 }
-$('btnSweep').addEventListener('click', startSweep);
-$('btnSweepStop').addEventListener('click', stopSweep);
-$('btnSweepMark').addEventListener('click', function(){
+$('btnSweep').addEventListener('click',startSweep);
+$('btnSweepStop').addEventListener('click',stopSweep);
+$('btnSweepMark').addEventListener('click',function(){
   var s=S.sweep; if(!s) return;
   var c=s.chars[s.ci], f=s.frames[s.fi];
   stopSweep();
@@ -738,21 +890,23 @@ $('btnSweepMark').addEventListener('click', function(){
   if(found){ $('frameSel').value=f; $('frameCustom').classList.add('hide'); }
   else { $('frameSel').value='__custom__'; $('frameCustom').classList.remove('hide'); $('frameCustom').value=f; }
   log('*** LOCKED: char='+shortLabel(c.uuid)+'  frame="'+f+'" ***');
-  setBadge($('idBadge'),'找到指令格式','on');
 });
 function startSweep(){
   if(!S.connected) return;
   var picked=[];
-  Array.prototype.forEach.call($('sweepPicks').querySelectorAll('input:checked'), function(cb){
+  Array.prototype.forEach.call($('sweepPicks').querySelectorAll('input:checked'),function(cb){
     var c=S.byUuid[cb.getAttribute('data-uuid')];
-    if(c && !isBlocked(c)) picked.push(c);
+    if(c&&!isBlocked(c)) picked.push(c);
+  });
+  /* risky endpoints go last so the safe ones get tested before the link drops */
+  picked.sort(function(a,b){
+    return (SWEEP_RISKY.indexOf(shortOf(a.uuid))>=0?1:0) - (SWEEP_RISKY.indexOf(shortOf(b.uuid))>=0?1:0);
   });
   if(!picked.length){ log('沒有勾選任何特徵。'); return; }
   S.sweep={ chars:picked, frames:SWEEP_FRAMES, ci:0, fi:0, stop:false };
   $('sweepNow').style.display='block';
   $('btnSweep').disabled=true; $('btnSweepStop').disabled=false;
-  log('sweep start: '+picked.map(function(c){ return shortLabel(c.uuid); }).join(', ')+
-      '  ('+picked.length+' x '+SWEEP_FRAMES.length+' 組)');
+  log('sweep start: '+picked.map(function(c){ return shortLabel(c.uuid); }).join(', '));
   sweepStep();
 }
 function stopSweep(){
@@ -764,18 +918,17 @@ function stopSweep(){
 function sweepStep(){
   var s=S.sweep;
   if(!s||s.stop||!S.connected) return;
-  if(s.ci>=s.chars.length){ log('sweep 全部試完，沒有命中。'); stopSweep(); return; }
+  if(s.ci>=s.chars.length){ log('sweep 全部試完。'); stopSweep(); return; }
   var c=s.chars[s.ci], f=s.frames[s.fi];
   var lvl=Math.max(1,Math.min(100,+$('sweepLevel').value||70));
   var dwell=Math.max(400,+$('sweepDwell').value||1400);
   var on=buildFrame(f,lvl,lvl), off=buildFrame(f,0,0);
-  $('sweepLabel').textContent = shortLabel(c.uuid)+'  <-  '+hexArr(on);
-  $('sweepProg').textContent  = 'char '+(s.ci+1)+'/'+s.chars.length+
-                                ' · frame '+(s.fi+1)+'/'+s.frames.length+'  「'+f+'」';
+  $('sweepLabel').textContent=shortLabel(c.uuid)+'  <-  '+hexArr(on);
+  $('sweepProg').textContent='char '+(s.ci+1)+'/'+s.chars.length+' · frame '+(s.fi+1)+'/'+s.frames.length+'  「'+f+'」';
   writeCh(c,on).then(function(){ log('sweep '+shortLabel(c.uuid)+' <- '+hexArr(on)); },
-                     function(e){ log('sweep '+shortLabel(c.uuid)+' err: '+e.message); })
+                     function(e){ log('sweep err: '+e.message); })
     .then(function(){ return delay(dwell); })
-    .then(function(){ if(S.sweep && !S.sweep.stop && S.connected) return writeCh(c,off).catch(function(){}); })
+    .then(function(){ if(S.sweep&&!S.sweep.stop&&S.connected) return writeCh(c,off).catch(function(){}); })
     .then(function(){ return delay(300); })
     .then(function(){
       if(!S.sweep||S.sweep.stop||!S.connected) return;
@@ -785,16 +938,15 @@ function sweepStep(){
     });
 }
 
-/* ==================== DUMP ==================== */
+/* ==================== DUMP / RAW ==================== */
 function dumpAll(){
   $('dumpBody').innerHTML='';
   var chain=Promise.resolve();
   S.chars.forEach(function(c){
     if(!c.properties.read) return;
     chain=chain.then(function(){
-      return readCh(c).then(function(v){
-        addDumpRow(c, hexOf(v)+'   "'+asciiOf(v)+'"');
-      }, function(e){ addDumpRow(c,'ERR '+e.message); });
+      return readCh(c).then(function(v){ addDumpRow(c,hexOf(v)+'   "'+asciiOf(v)+'"'); },
+                            function(e){ addDumpRow(c,'ERR '+e.message); });
     });
   });
   return chain;
@@ -802,14 +954,13 @@ function dumpAll(){
 function addDumpRow(c,text){
   var tr=document.createElement('tr');
   var a=document.createElement('td'); a.textContent=shortLabel(c.uuid);
-  var b=document.createElement('td'); b.textContent=props(c)+(isBlocked(c)?' 🔒':'');
+  var b=document.createElement('td'); b.textContent=props(c)+(isBlocked(c)?' \u{1F512}':'');
   var d=document.createElement('td'); d.className='val'; d.textContent=text;
   tr.appendChild(a); tr.appendChild(b); tr.appendChild(d);
   $('dumpBody').appendChild(tr);
 }
-$('btnDump').addEventListener('click', function(){ dumpAll(); });
+$('btnDump').addEventListener('click',function(){ dumpAll(); });
 
-/* ==================== RAW ==================== */
 function rawChar(){
   var u=($('rawUuid').value||'').trim().toLowerCase().replace(/^0x/,'');
   if(/^[0-9a-f]{4}$/.test(u)) u=u16uuid(parseInt(u,16));
@@ -819,26 +970,26 @@ function parseHex(s){
   return (s||'').trim().split(/[\s,]+/).map(function(t){ return parseInt(t,16)&0xff; })
         .filter(function(n){ return !isNaN(n); });
 }
-$('btnRawWrite').addEventListener('click', function(){
+$('btnRawWrite').addEventListener('click',function(){
   var c=rawChar(); if(!c){ $('rawOut').textContent='找不到該 UUID'; return; }
-  if(isBlocked(c)){ $('rawOut').textContent='這個特徵受保護，禁止寫入'; log('BLOCKED raw write to '+shortLabel(c.uuid)); return; }
+  if(isBlocked(c)){ $('rawOut').textContent='受保護，禁寫'; return; }
   var b=parseHex($('rawHex').value);
   writeCh(c,b).then(function(){
     $('rawOut').textContent='wrote OK: '+hexArr(b);
     log('raw '+shortLabel(c.uuid)+' <- '+hexArr(b));
-  }, function(e){ $('rawOut').textContent='ERR '+e.message; });
+  },function(e){ $('rawOut').textContent='ERR '+e.message; });
 });
-$('btnRawRead').addEventListener('click', function(){
+$('btnRawRead').addEventListener('click',function(){
   var c=rawChar(); if(!c){ $('rawOut').textContent='找不到該 UUID'; return; }
   readCh(c).then(function(v){
     $('rawOut').textContent=hexOf(v)+'   "'+asciiOf(v)+'"';
     log('raw read '+shortLabel(c.uuid)+' = '+hexOf(v));
-  }, function(e){ $('rawOut').textContent='ERR '+e.message; });
+  },function(e){ $('rawOut').textContent='ERR '+e.message; });
 });
 
-log('v3 ready.');
-log('感測器已正確解碼：0x0A0D = 溫度(u24BE/100) + FF + 氣壓(u32BE/100 mbar)，0x0A0A = 電池 mV。');
-log('身分欄位 0x0A01(MAC) / 0x0A02(token) / 0x0A03 已全域禁寫，掃頻預設只碰 FFF1/FFF2/0A50。');
+log('v4 ready.');
+log('已證實：0x0A11 只在按電源鍵時變非零；0x0A50 被寫入會回 06 FF xx 00 並踢掉連線。');
+log('流程：連線 → 按電源鍵鎖住金鑰 → 寫回 → 若無效，跑第 3 節的 0x0A50 opcode 探測。');
 </script>
 </body>
 </html>
