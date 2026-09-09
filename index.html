@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>LELO F1S V3 — Direct BLE Lab v5</title>
+<title>LELO F1S V3 — Direct BLE Control v6</title>
 <style>
   :root{
     --bg:#0b0b12; --panel:#15151f; --panel2:#1d1d2a; --border:#2c2c3d;
@@ -61,9 +61,7 @@
   .slabel b{ color:var(--text); font-size:15px; }
   .note{ font-size:11px; color:var(--muted); margin-top:8px; }
   .warnbox{ background:#2a1a00; border:1px solid var(--warn); color:#ffd9a0; border-radius:10px; padding:9px 11px; font-size:12px; margin-bottom:10px; }
-  .dangerbox{ background:#2a0d14; border:1px solid var(--danger); color:#ffc4ce; border-radius:10px; padding:9px 11px; font-size:12px; margin:9px 0; }
   .hint{ background:#101a2a; border:1px solid var(--accent2); color:#c9d4ff; border-radius:10px; padding:9px 11px; font-size:12px; margin:9px 0; }
-  /* auth state banner */
   .auth{ border-radius:12px; padding:14px; margin:10px 0; text-align:center; border:2px solid; }
   .auth .big{ font-size:19px; font-weight:800; letter-spacing:.5px; }
   .auth .sm{ font-size:12px; margin-top:4px; opacity:.85;
@@ -73,6 +71,9 @@
   .auth.s2{ background:#0d2a1e; border-color:var(--ok); color:#8ff0c8; }
   .auth.s3{ background:#2a0d14; border-color:var(--danger); color:#ffc4ce; }
   .mono{ font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .frame{ background:#08080e; border:1px solid var(--border); border-radius:9px;
+          padding:9px; margin-top:9px; font-family:ui-monospace,Menlo,Consolas,monospace;
+          font-size:13px; color:var(--ok); word-break:break-all; }
   .stat{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:8px 10px; overflow:hidden; }
   .stat .k{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -81,7 +82,7 @@
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .stat.live{ border-color:var(--ok); }
   #log{ background:#08080e; border:1px solid var(--border); border-radius:10px;
-        padding:9px; height:230px; overflow:auto; font-size:11px; line-height:1.45;
+        padding:9px; height:210px; overflow:auto; font-size:11px; line-height:1.45;
         font-family:ui-monospace,Menlo,Consolas,monospace; white-space:pre-wrap; word-break:break-word; }
   table{ width:100%; border-collapse:collapse; font-size:11px; }
   th{ text-align:left; color:var(--muted); font-weight:600; font-size:10px;
@@ -91,23 +92,16 @@
   tr.hot td{ background:#0f2a20; }
   td.val{ color:var(--ok); }
   td.n{ color:var(--muted); text-align:right; white-space:nowrap; }
-  .chk{ display:inline-flex; align-items:center; gap:5px; font-size:11px;
-        font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--muted);
-        background:var(--panel2); border:1px solid var(--border); border-radius:8px;
-        padding:5px 8px; margin:3px 4px 0 0; }
-  .chk input{ width:15px; height:15px; accent-color:var(--accent); }
-  .chk.warn{ border-color:var(--danger); color:#ffb0bd; }
-  .sweepnow{ background:var(--panel2); border:1px solid var(--accent2); border-radius:10px;
-             padding:10px; margin-top:9px; font-size:13px; }
-  .sweepnow b{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:15px; color:var(--accent); }
+  details{ margin-top:10px; }
+  summary{ cursor:pointer; font-size:12px; color:var(--muted); padding:6px 0; }
   .hide{ display:none !important; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-<h1>LELO F1S V3 — Direct BLE Lab <span style="color:var(--accent)">v5</span></h1>
-<p class="sub">授權握手已破解 · 保持授權狀態下測試馬達</p>
+<h1>LELO F1S V3 — Direct BLE Control <span style="color:var(--accent)">v6</span></h1>
+<p class="sub">協定由 btsnoop HCI log 還原 · 官方 App 封包重現</p>
 
 <div class="warnbox" id="envWarn" style="display:none"></div>
 
@@ -129,94 +123,83 @@
     <button class="b-primary" id="btnConnect">Connect</button>
     <button class="b-ghost" id="btnDisconnect" disabled>Disconnect</button>
   </div>
-  <div class="switch"><input type="checkbox" id="optWriteResp" checked><span>寫入用 write-with-response</span></div>
-  <div class="switch"><input type="checkbox" id="optAutoRe" checked><span>自動重連（斷線後授權會失效，要重按電源鍵）</span></div>
+  <div class="switch"><input type="checkbox" id="optAutoRe" checked><span>自動重連</span></div>
 </section>
 
 <!-- 2 AUTH -->
 <section>
   <h2>2 · 授權 <span class="badge" id="keyBadge">—</span></h2>
-
   <div class="auth s0" id="authBox">
     <div class="big" id="authBig">未連線</div>
     <div class="sm" id="authSm"></div>
   </div>
-
-  <div class="hint" id="authHint">
-    <b>連上後按一次玩具的電源鍵。</b>
-    <code>0x0A11</code> 會吐出一組 8-byte 金鑰，程式自動把它原樣寫回去，
-    裝置回 <code>01 00 00 00 00 00 00 00</code> 就是授權成功。
+  <div class="hint">
+    金鑰是<b>這台裝置的固定值</b>（官方 App 也是直接寫死的那組，不是每次隨機挑戰）。
+    存進下面的欄位之後，以後連線就會自動送出，<b>不必再按電源鍵</b>。
   </div>
-
-  <div class="switch"><input type="checkbox" id="optAutoEcho" checked><span><b>自動回寫金鑰</b>（擷取到就立刻送回，不用手動按）</span></div>
+  <div>
+    <label>裝置金鑰（8 bytes hex）—— 空白時改用「按電源鍵讓 0x0A11 吐出來」</label>
+    <input type="text" id="keyInput" class="mono" placeholder="42 2B CC CD 45 7C 00 24">
+  </div>
+  <div class="switch"><input type="checkbox" id="optAutoAuth" checked><span>連線後自動授權</span></div>
   <div class="btn-row" style="margin-top:6px">
-    <button class="b-ok b-sm" id="btnEchoKey" disabled>手動回寫金鑰</button>
+    <button class="b-ok b-sm" id="btnAuth" disabled>立刻授權</button>
     <button class="b-ghost b-sm" id="btnReRead" disabled>重讀 0x0A11</button>
-    <button class="b-ghost b-sm" id="btnClearKey">清除鎖定</button>
-  </div>
-
-  <div class="dangerbox">
-    <b>授權會被這些動作打掉：</b>寫錯誤的金鑰、對 <code>0x0A50</code> 寫入（會直接斷線）、任何斷線重連。
-    每次重連都要<b>重按一次電源鍵</b>。
   </div>
 </section>
 
-<!-- 3 MOTOR -->
+<!-- 3 CONTROL -->
 <section>
-  <h2>3 · 馬達測試 <span class="badge" id="motorBadge">—</span></h2>
+  <h2>3 · 控制 <span class="badge" id="motorBadge">—</span></h2>
 
-  <button class="b-ok b-big" id="btnBigTest" style="width:100%" disabled>▶  測試 70% × 3 秒</button>
-  <p class="note" style="margin-top:6px">SDK 註明<b>低於 30% 馬達可能完全轉不動</b>。上一輪授權成功後只測到 16%，那不算測過。</p>
+  <button class="b-ok b-big" id="btnReplay" style="width:100%" disabled>▶  重播官方 App 的完整序列</button>
+  <p class="note" style="margin-top:6px">30%→50% 爬升、維持、再降回停止 —— 逐字節重現 btsnoop 抓到的封包。這是已知能動的基準測試。</p>
 
-  <div class="row" style="margin-top:11px">
-    <div><label>指令特徵</label><select id="cmdSel"><option>（連線後填入）</option></select></div>
+  <div style="margin-top:14px">
+    <div class="slabel"><span>強度</span><b><span id="lblPow">0</span>%</b></div>
+    <input type="range" id="sPow" min="0" max="100" step="5" value="0">
   </div>
-  <div style="margin-top:9px">
-    <label>frame（<code>{m}</code>=主馬達 <code>{v}</code>=震動）</label>
-    <select id="frameSel">
-      <option value="01 {m} {v}">01 {m} {v}</option>
-      <option value="{m} {v}">{m} {v}</option>
-      <option value="01 {m} {v} 00">01 {m} {v} 00</option>
-      <option value="{m} {v} 00 00">{m} {v} 00 00</option>
-      <option value="01 00 {m} {v}">01 00 {m} {v}</option>
-      <option value="0A {m} {v}">0A {m} {v}</option>
-      <option value="__custom__">自訂…</option>
-    </select>
-    <input type="text" id="frameCustom" class="hide" style="margin-top:7px" placeholder="例如 0A 01 {m} {v}">
-  </div>
-
-  <div style="margin-top:11px">
-    <div class="slabel"><span>主馬達</span><b><span id="lblMain">0</span>%</b></div>
-    <input type="range" id="sMain" min="0" max="100" value="0">
-  </div>
-  <div>
-    <div class="slabel"><span>震動馬達</span><b><span id="lblVib">0</span>%</b></div>
-    <input type="range" id="sVib" min="0" max="100" value="0">
-  </div>
-  <div class="switch"><input type="checkbox" id="optLink" checked><span>兩顆連動</span></div>
   <div class="btn-row" style="margin-top:4px">
-    <button class="b-ghost b-sm" data-preset="40">40%</button>
-    <button class="b-ghost b-sm" data-preset="60">60%</button>
-    <button class="b-ghost b-sm" data-preset="80">80%</button>
+    <button class="b-ghost b-sm" data-preset="30">30%</button>
+    <button class="b-ghost b-sm" data-preset="50">50%</button>
+    <button class="b-ghost b-sm" data-preset="70">70%</button>
     <button class="b-ghost b-sm" data-preset="100">100%</button>
     <button class="b-danger b-sm" id="btnStop" disabled>STOP</button>
   </div>
 
-  <h2 style="margin:16px 0 8px">掃頻（授權狀態下才有意義）</h2>
-  <div id="sweepPicks"></div>
-  <div class="row" style="margin-top:9px">
-    <div><label>停留 ms</label><input type="number" id="sweepDwell" value="1600" min="400" step="100"></div>
-    <div><label>強度 %</label><input type="number" id="sweepLevel" value="75" min="1" max="100"></div>
+  <div class="row" style="margin-top:11px">
+    <div>
+      <label>通道（byte 2）</label>
+      <select id="chSel">
+        <option value="2">02</option>
+        <option value="1">01</option>
+        <option value="both">兩者都送</option>
+      </select>
+    </div>
   </div>
-  <div class="btn-row" style="margin-top:9px">
-    <button class="b-primary" id="btnSweep" disabled>開始掃頻</button>
-    <button class="b-danger" id="btnSweepStop" disabled>停止</button>
-  </div>
-  <div class="sweepnow" id="sweepNow" style="display:none">
-    正在試：<b id="sweepLabel">—</b><br>
-    <span class="note" id="sweepProg"></span>
-    <button class="b-ok" id="btnSweepMark" style="width:100%;margin-top:9px">就是這個！鎖定</button>
-  </div>
+
+  <div class="frame" id="framePreview">0A 12 02 02 03 E8 03 E8 23 00</div>
+
+  <details>
+    <summary>進階：frame 各欄位</summary>
+    <div class="row" style="margin-top:8px">
+      <div><label>表頭 byte0</label><input type="text" id="fHdr0" class="mono" value="0A"></div>
+      <div><label>表頭 byte1</label><input type="text" id="fHdr1" class="mono" value="12"></div>
+      <div><label>執行碼 byte3</label><input type="text" id="fRun" class="mono" value="02"></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div><label>參數 1（byte4-5, u16BE）</label><input type="number" id="fP1" value="1000"></div>
+      <div><label>參數 2（byte6-7, u16BE）</label><input type="number" id="fP2" value="1000"></div>
+    </div>
+    <div class="switch"><input type="checkbox" id="optLinkAB" checked><span>byte8 = byte9 + 偏移（App 的行為，偏移 35）</span></div>
+    <div class="row" style="margin-top:4px">
+      <div><label>偏移</label><input type="number" id="fOff" value="35"></div>
+      <div><label>byte8 手動</label><input type="number" id="fA" value="65" min="0" max="255"></div>
+      <div><label>byte9 手動</label><input type="number" id="fB" value="30" min="0" max="255"></div>
+    </div>
+    <p class="note">App 實測值：byte9 = 滑桿百分比（30…50，以 5 為級距），byte8 恆為 byte9 + 35。
+    兩者的實際作用還沒分辨出來，取消連動可以各自試。</p>
+  </details>
 </section>
 
 <!-- 4 SENSORS -->
@@ -255,13 +238,13 @@
 <section>
   <h2>5 · Raw hex console</h2>
   <div><label>目標特徵（短碼如 fff2 或完整 UUID）</label><input type="text" id="rawUuid" value="fff2"></div>
-  <div style="margin-top:8px"><label>Hex bytes</label><input type="text" id="rawHex" value="01 4B 4B"></div>
+  <div style="margin-top:8px"><label>Hex bytes</label><input type="text" id="rawHex" class="mono" value="0A 12 02 02 03 E8 03 E8 41 1E"></div>
   <div class="btn-row" style="margin-top:9px">
     <button class="b-primary b-sm" id="btnRawWrite" disabled>Write</button>
     <button class="b-ghost b-sm" id="btnRawRead" disabled>Read</button>
   </div>
   <div style="margin-top:9px;font-size:12px" class="val mono" id="rawOut">—</div>
-  <p class="note">寫 <code>0x0A50</code> 會立刻斷線並失去授權，需要時才用。</p>
+  <p class="note">寫 <code>0x0A50</code> 會立刻斷線並失去授權。官方 App 從頭到尾沒碰過它。</p>
 </section>
 
 <section>
@@ -290,7 +273,12 @@ function shortLabel(u){ var s=shortOf(u); return s===null?u.slice(0,8):'0x'+('00
 function delay(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 function asciiOf(dv){ var a='',i,b; for(i=0;i<dv.byteLength;i++){ b=dv.getUint8(i); a+=(b>=32&&b<127)?String.fromCharCode(b):'\u00b7'; } return a; }
 function allZero(a){ return a.every(function(x){ return x===0; }); }
-function isAuthPattern(a){ return a.length>=8 && a[0]===1 && a.slice(1).every(function(x){ return x===0; }); }
+function isAuthPattern(a){ return a.length>=8&&a[0]===1&&a.slice(1).every(function(x){ return x===0; }); }
+function parseHexList(s){
+  return (s||'').trim().split(/[\s,]+/).map(function(t){ return parseInt(t,16)&0xff; })
+        .filter(function(n){ return !isNaN(n); });
+}
+function hb(id,dflt){ var n=parseInt(($(id).value||'').trim(),16); return isNaN(n)?dflt:(n&0xff); }
 
 var logEl=$('log');
 function log(m){
@@ -307,13 +295,21 @@ $('btnCopyLog').addEventListener('click',function(){
   document.body.removeChild(ta);
 });
 
+/* ---- protocol constants recovered from btsnoop_hci.log ----
+   AUTH : write the device's 8-byte static key to 0x0A11,
+          device answers 01 00 00 00 00 00 00 00
+   MOTOR: write to 0xFFF2 (write-with-response)
+          run  : 0A 12 <ch> 02 <p1:u16BE> <p2:u16BE> <a> <b>
+          stop : 0A 12 <ch> 00
+   The official app never touches 0xFFF1 or 0x0A50.                     */
 var SVC_LELO=u16uuid(0xfff0), SVC_DEVINFO=u16uuid(0x180a), SVC_BATT=u16uuid(0x180f);
-var C_KEY=0x0a11, C_A50=0x0a50;
+var C_KEY=0x0a11, C_TX=0xfff2, C_A50=0x0a50;
 var WRITE_BLOCKED=[0x0a01,0x0a02,0x0a03];
-var SWEEP_DEFAULT=[0xfff1,0xfff2];
-var SWEEP_RISKY=[0x0a50];
-var SWEEP_FRAMES=['01 {m} {v}','{m} {v}','01 {m} {v} 00','{m} {v} 00 00','01 00 {m} {v}','0A {m} {v}','01 {m}','{m}'];
 var QUIET_CHARS=[0x0a0a,0x0a0c,0x0a0d,0x2a19];
+var KEY_STORE='lelo_f1sv3_key';
+
+/* the exact byte pairs the official app sent, in order */
+var APP_SEQ=[[0x41,0x1e],[0x46,0x23],[0x4b,0x28],[0x50,0x2d],[0x55,0x32]];
 
 function isBlocked(c){ var s=shortOf(c.uuid); return s!==null&&WRITE_BLOCKED.indexOf(s)>=0; }
 function optionalServices(){
@@ -324,10 +320,9 @@ function optionalServices(){
 
 var S={
   device:null, server:null, chars:[], byShort:{}, byUuid:{},
-  notifyChars:[], writeChars:[], cmdChar:null, connected:false,
-  mutex:Promise.resolve(), main:0, vib:0, pollTimer:null,
-  sweep:null, lastWrite:null, connectedAt:0,
-  key:null, authed:false, echoSent:false,
+  notifyChars:[], connected:false, mutex:Promise.resolve(),
+  pow:0, pollTimer:null, lastWrite:null, connectedAt:0,
+  key:null, authed:false, authSent:false, replaying:false,
   reconnecting:false, waiters:[]
 };
 function q(fn){ var r=S.mutex.then(fn,fn); S.mutex=r.catch(function(){}); return r; }
@@ -345,10 +340,9 @@ function props(c){
   return o.join('');
 }
 function enableAll(on){
-  ['btnDisconnect','btnReRead','btnStop','btnSweep','btnPoll','btnDump','btnRawWrite','btnRawRead']
+  ['btnDisconnect','btnReRead','btnStop','btnPoll','btnDump','btnRawWrite','btnRawRead','btnReplay']
     .forEach(function(i){ $(i).disabled=!on; });
-  $('btnEchoKey').disabled = !(on && S.key);
-  $('btnBigTest').disabled = !on;
+  $('btnAuth').disabled = !on;
 }
 (function(){
   var m=[];
@@ -357,20 +351,34 @@ function enableAll(on){
   if(m.length){ $('envWarn').style.display='block'; $('envWarn').innerHTML=m.join('<br>'); }
 })();
 
+/* remember the key across page loads */
+try{
+  var saved=localStorage.getItem(KEY_STORE);
+  if(saved) $('keyInput').value=saved;
+}catch(e){}
+$('keyInput').addEventListener('change',function(){
+  var b=parseHexList(this.value);
+  if(b.length===8){
+    try{ localStorage.setItem(KEY_STORE, hexArr(b)); }catch(e){}
+    this.value=hexArr(b);
+    log('金鑰已儲存：'+hexArr(b));
+  } else if(this.value.trim()){
+    log('金鑰必須是 8 個位元組，目前 '+b.length+' 個');
+  }
+});
+function storedKey(){
+  var b=parseHexList($('keyInput').value);
+  return b.length===8 ? b : null;
+}
+
 /* ==================== AUTH STATE ==================== */
-/* 0 = not connected, 1 = connected but no key yet, 2 = AUTHORISED, 3 = rejected */
 function setAuthState(n,big,sm){
-  var box=$('authBox');
-  box.className='auth s'+n;
+  $('authBox').className='auth s'+n;
   $('authBig').textContent=big;
   $('authSm').textContent=sm||'';
-  S.authed = (n===2);
+  S.authed=(n===2);
   setBadge($('motorBadge'), S.authed?'已授權':'未授權', S.authed?'on':'err');
-  setBadge($('keyBadge'),   S.authed?'OK':(S.key?'有金鑰':'等待'), S.authed?'on':(S.key?'busy':''));
-}
-function resetAuth(){
-  S.key=null; S.echoSent=false;
-  $('btnEchoKey').disabled=true;
+  setBadge($('keyBadge'),   S.authed?'OK':'等待', S.authed?'on':'');
 }
 
 /* ==================== CONNECT ==================== */
@@ -382,11 +390,9 @@ $('btnConnect').addEventListener('click',function(){
 });
 $('btnDisconnect').addEventListener('click',function(){
   $('optAutoRe').checked=false;
-  stopSweep();
   if(S.device&&S.device.gatt&&S.device.gatt.connected) S.device.gatt.disconnect();
   onDrop();
 });
-
 function pickAndConnect(){
   var mode=$('scanMode').value, opts, opt=optionalServices();
   if(mode==='service')   opts={ filters:[{services:[SVC_LELO]}], optionalServices:opt };
@@ -403,7 +409,7 @@ function pickAndConnect(){
 function openLink(){
   var t0=Date.now();
   setBadge($('connBadge'),'Connecting…','busy');
-  resetAuth();
+  S.authSent=false;
   return withTimeout(S.device.gatt.connect(),30000,'gatt.connect').then(function(srv){
     S.server=srv; S.connectedAt=Date.now();
     log('gatt.connect ok (+'+(Date.now()-t0)+'ms)');
@@ -411,8 +417,11 @@ function openLink(){
   }).then(function(){
     S.connected=true; enableAll(true);
     setBadge($('connBadge'),'Connected: '+(S.device.name||'?'),'on');
-    setAuthState(1,'請按一次電源鍵','等待 0x0A11 吐出金鑰…');
+    setAuthState(1,'等待授權','');
     return subscribeAll();
+  }).then(function(){
+    if($('optAutoAuth').checked && storedKey()) return delay(300).then(doAuth);
+    if(!storedKey()) setAuthState(1,'請按一次電源鍵','沒有存金鑰 — 等 0x0A11 吐出來');
   }).then(function(){
     var w=S.waiters; S.waiters=[];
     w.forEach(function(fn){ fn(); });
@@ -421,19 +430,17 @@ function openLink(){
 function onDrop(){
   if(!S.device) return;
   var wasConn=S.connected;
-  S.connected=false;
+  S.connected=false; S.authSent=false; S.replaying=false;
   if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; }
-  S.chars=[]; S.byShort={}; S.byUuid={}; S.notifyChars=[]; S.writeChars=[]; S.cmdChar=null;
-  resetAuth(); enableAll(false);
+  S.chars=[]; S.byShort={}; S.byUuid={}; S.notifyChars=[];
+  enableAll(false);
   setAuthState(0,'未連線','');
   if(wasConn){
     log('*** DISCONNECTED after '+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s ***');
-    if(S.lastWrite) log('***   斷線前最後寫入: '+S.lastWrite.uuid+' <- '+S.lastWrite.hex+
-                        '  ('+((Date.now()-S.lastWrite.t)/1000).toFixed(2)+'s 前) ***');
+    if(S.lastWrite) log('***   斷線前最後寫入: '+S.lastWrite.uuid+' <- '+S.lastWrite.hex+' ***');
   }
-  setBadge($('connBadge'),'Disconnected');
-  setBadge($('sensBadge'),'—');
-  $('monBody').innerHTML=''; $('dumpBody').innerHTML=''; $('sweepPicks').innerHTML='';
+  setBadge($('connBadge'),'Disconnected'); setBadge($('sensBadge'),'—');
+  $('monBody').innerHTML=''; $('dumpBody').innerHTML='';
   if($('optAutoRe').checked&&S.device&&!S.reconnecting) reconnectLoop(1);
 }
 function reconnectLoop(attempt){
@@ -442,25 +449,13 @@ function reconnectLoop(attempt){
   setBadge($('connBadge'),'重連中 #'+attempt,'busy');
   delay(attempt===1?2200:3000).then(function(){
     if(!$('optAutoRe').checked){ S.reconnecting=false; return; }
-    return openLink().then(function(){
-      S.reconnecting=false;
-      log('=== 自動重連成功 === 授權已失效，請再按一次電源鍵');
-    });
+    return openLink().then(function(){ S.reconnecting=false; log('=== 自動重連成功 ==='); });
   }).catch(function(e){
     log('reconnect #'+attempt+' failed: '+(e&&e.message?e.message:e));
     if(attempt<12) reconnectLoop(attempt+1);
     else { S.reconnecting=false; setBadge($('connBadge'),'重連放棄','err'); }
   });
 }
-function waitConnected(ms){
-  if(S.connected) return Promise.resolve(true);
-  return new Promise(function(res){
-    var done=false;
-    var to=setTimeout(function(){ if(!done){ done=true; res(false); } },ms||45000);
-    S.waiters.push(function(){ if(!done){ done=true; clearTimeout(to); res(true); } });
-  });
-}
-
 function discover(){
   return S.server.getPrimaryServices().then(function(svcs){
     var chain=Promise.resolve(); S.chars=[];
@@ -480,92 +475,172 @@ function discover(){
       if(sh!==null&&S.byShort[sh]===undefined) S.byShort[sh]=c;
     });
     S.notifyChars=S.chars.filter(function(c){ return c.properties.notify||c.properties.indicate; });
-    S.writeChars =S.chars.filter(function(c){ return (c.properties.write||c.properties.writeWithoutResponse)&&!isBlocked(c); });
-    var sel=$('cmdSel'), keep=sel.value; sel.innerHTML='';
-    S.writeChars.forEach(function(c){
-      var o=document.createElement('option');
-      o.value=c.uuid; o.textContent=shortLabel(c.uuid)+'  ['+props(c)+']';
-      sel.appendChild(o);
-    });
-    var pref=S.byUuid[keep]||S.byShort[0xfff2]||S.byShort[0xfff1]||S.writeChars[0]||null;
-    if(pref){ sel.value=pref.uuid; S.cmdChar=pref; }
-    buildMonitor(); buildSweepPicks();
+    buildMonitor();
   });
 }
-$('cmdSel').addEventListener('change',function(){
-  S.cmdChar=S.byUuid[this.value]||null;
-  log('command char → '+(S.cmdChar?shortLabel(S.cmdChar.uuid):'none'));
-});
 
 /* ==================== R/W ==================== */
 function writeCh(c,bytes){
   if(isBlocked(c)){ log('BLOCKED write to '+shortLabel(c.uuid)); return Promise.reject(new Error('blocked')); }
-  var buf=new Uint8Array(bytes), wantResp=$('optWriteResp').checked;
+  var buf=new Uint8Array(bytes);
   S.lastWrite={ uuid:shortLabel(c.uuid), hex:hexArr(bytes), t:Date.now() };
   return q(function(){
-    if(!wantResp&&c.properties.writeWithoutResponse&&c.writeValueWithoutResponse)
-      return c.writeValueWithoutResponse(buf).catch(function(){ return c.writeValue(buf); });
+    /* the app used ATT WRITE_REQ throughout — always write-with-response */
     if(c.writeValueWithResponse) return c.writeValueWithResponse(buf).catch(function(){ return c.writeValue(buf); });
     return c.writeValue(buf);
   });
 }
 function readCh(c){ return q(function(){ return c.readValue(); }); }
 
-/* ==================== KEY / AUTH ==================== */
+/* ==================== AUTH ==================== */
+function doAuth(){
+  var k=storedKey()||S.key;
+  if(!k){ log('沒有金鑰可用 —— 按一次電源鍵讓 0x0A11 吐出來'); return Promise.resolve(); }
+  var c=S.byShort[C_KEY];
+  if(!c){ log('0x0A11 不存在'); return Promise.resolve(); }
+  S.authSent=true;
+  return writeCh(c,k.slice()).then(function(){
+    log('AUTH → 0x0A11 <- '+hexArr(k));
+    return delay(300).then(function(){ return readCh(c); });
+  }).then(function(v){
+    onKeyValue(v);
+  },function(e){ log('AUTH FAILED: '+e.message); });
+}
+$('btnAuth').addEventListener('click',function(){ doAuth(); });
+$('btnReRead').addEventListener('click',function(){
+  var c=S.byShort[C_KEY]; if(!c) return;
+  readCh(c).then(function(v){ log('0x0A11 = '+hexOf(v)); onKeyValue(v); },function(e){ log('read err: '+e.message); });
+});
+
 function onKeyValue(dv){
   var b=bytesOf(dv), h=hexArr(b);
-
   if(isAuthPattern(b)){
-    if(!S.authed){
-      log('#### AUTHORISED  0x0A11 = '+h+'  ####');
-      log('#### 現在馬上測 70% —— 低於 30% 可能完全沒感覺 ####');
-    }
+    if(!S.authed) log('#### AUTHORISED  0x0A11 = '+h+'  ####');
     setAuthState(2,'✅ 已授權','0x0A11 = '+h);
     return;
   }
-
   if(allZero(b)){
     if(S.authed){
-      log('!!!! 授權被打掉了（0x0A11 回到全零）!!!!');
-      setAuthState(3,'授權失效','請再按一次電源鍵');
-      resetAuth();
-    } else if(!S.key){
+      log('!!!! 授權失效 !!!!');
+      setAuthState(3,'授權失效','請重新授權或按電源鍵');
+    } else if(!storedKey()){
       setAuthState(1,'請按一次電源鍵','0x0A11 目前全零');
     }
     return;
   }
-
-  /* non-zero, not the auth pattern → this is the challenge key */
-  if(!S.key){
-    S.key=b;
-    $('btnEchoKey').disabled=false;
-    var f='';
-    try{ f='  float32BE: '+dv.getFloat32(0,false).toFixed(3)+' , '+dv.getFloat32(4,false).toFixed(3); }catch(e){}
-    log('#### KEY CAPTURED  '+h+'  (+'+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s)'+f+' ####');
-    setAuthState(1,'已擷取金鑰',h);
-    if($('optAutoEcho').checked && !S.echoSent){
-      S.echoSent=true;
-      delay(250).then(echoKey);
-    }
+  /* non-zero, not the ACK → this is the device key */
+  S.key=b;
+  if(!$('keyInput').value.trim()){
+    $('keyInput').value=h;
+    try{ localStorage.setItem(KEY_STORE,h); }catch(e){}
+    log('#### KEY 擷取並儲存：'+h+'  ####');
   }
+  setAuthState(1,'已取得金鑰',h);
+  if($('optAutoAuth').checked && !S.authSent){ delay(200).then(doAuth); }
 }
-function echoKey(){
-  if(!S.key){ log('還沒有金鑰'); return Promise.resolve(); }
-  var c=S.byShort[C_KEY];
-  if(!c){ log('0x0A11 不存在'); return Promise.resolve(); }
-  return writeCh(c,S.key.slice()).then(function(){
-    log('KEY echo → 0x0A11 <- '+hexArr(S.key));
-  },function(e){ log('KEY echo FAILED: '+e.message); });
+
+/* ==================== MOTOR ==================== */
+function frameRun(ch,a,b){
+  var p1=Math.max(0,Math.min(65535,+$('fP1').value||1000));
+  var p2=Math.max(0,Math.min(65535,+$('fP2').value||1000));
+  return [hb('fHdr0',0x0a), hb('fHdr1',0x12), ch&0xff, hb('fRun',0x02),
+          (p1>>8)&0xff, p1&0xff, (p2>>8)&0xff, p2&0xff, a&0xff, b&0xff];
 }
-$('btnEchoKey').addEventListener('click',function(){ S.echoSent=true; echoKey(); });
-$('btnReRead').addEventListener('click',function(){
-  var c=S.byShort[C_KEY]; if(!c) return;
-  readCh(c).then(function(v){ log('0x0A11 read = '+hexOf(v)); onKeyValue(v); },function(e){ log('read err: '+e.message); });
+function frameStop(ch){
+  return [hb('fHdr0',0x0a), hb('fHdr1',0x12), ch&0xff, 0x00];
+}
+function currentAB(){
+  if($('optLinkAB').checked){
+    var b=S.pow, off=+$('fOff').value||0;
+    var a=Math.max(0,Math.min(255,b+off));
+    $('fA').value=a; $('fB').value=b;
+    return [a,b];
+  }
+  return [Math.max(0,Math.min(255,+$('fA').value||0)),
+          Math.max(0,Math.min(255,+$('fB').value||0))];
+}
+function channels(){
+  var v=$('chSel').value;
+  return v==='both' ? [2,1] : [parseInt(v,10)];
+}
+function updatePreview(){
+  var ab=currentAB();
+  var f = S.pow>0 ? frameRun(channels()[0],ab[0],ab[1]) : frameStop(channels()[0]);
+  $('framePreview').textContent=hexArr(f);
+}
+
+function txChar(){ return S.byShort[C_TX]||null; }
+var busy=false, dirty=false, lastSent='';
+function schedule(){ dirty=true; pump(); }
+function pump(){
+  if(busy||!dirty||!S.connected||S.replaying) return;
+  var c=txChar(); if(!c) return;
+  dirty=false; busy=true;
+  var ab=currentAB(), chs=channels();
+  var frames = (S.pow>0) ? chs.map(function(ch){ return frameRun(ch,ab[0],ab[1]); })
+                         : chs.map(function(ch){ return frameStop(ch); });
+  var chain=Promise.resolve();
+  frames.forEach(function(f){
+    chain=chain.then(function(){
+      return writeCh(c,f).then(function(){
+        var line=hexArr(f);
+        if(line!==lastSent){ lastSent=line; log('TX 0xFFF2 <- '+line+(S.authed?'':'   [未授權！]')); }
+      },function(e){ log('TX failed: '+e.message); });
+    });
+  });
+  chain.then(function(){ busy=false; setTimeout(pump,40); });
+}
+function setPow(n){
+  S.pow=Math.max(0,Math.min(100,n|0));
+  $('sPow').value=S.pow; $('lblPow').textContent=S.pow;
+  updatePreview();
+}
+$('sPow').addEventListener('input',function(){ setPow(+this.value); schedule(); });
+Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'),function(b){
+  b.addEventListener('click',function(){ setPow(+b.getAttribute('data-preset')); schedule(); });
 });
-$('btnClearKey').addEventListener('click',function(){
-  resetAuth();
-  setAuthState(S.connected?1:0, S.connected?'請按一次電源鍵':'未連線','');
-  log('key cleared');
+$('btnStop').addEventListener('click',function(){
+  S.replaying=false;
+  setPow(0); schedule();
+});
+['fHdr0','fHdr1','fRun','fP1','fP2','fA','fB','fOff','chSel'].forEach(function(id){
+  $(id).addEventListener('input',updatePreview);
+  $(id).addEventListener('change',updatePreview);
+});
+$('optLinkAB').addEventListener('change',updatePreview);
+
+/* replay the captured app sequence byte-for-byte */
+$('btnReplay').addEventListener('click',function(){
+  var c=txChar();
+  if(!c){ log('0xFFF2 不存在'); return; }
+  if(!S.authed) log('注意：目前未授權，重播很可能無效。');
+  var ch=channels()[0];
+  S.replaying=true;
+  log('=== 重播官方序列（通道 '+pad2(ch).toUpperCase()+'）===');
+  var chain=Promise.resolve();
+  var steps=[];
+  APP_SEQ.forEach(function(ab){ steps.push(ab); });          // 30 → 50 %
+  steps.push(null);                                          // hold marker
+  APP_SEQ.slice(0,4).reverse().forEach(function(ab){ steps.push(ab); }); // 45 → 30 %
+  steps.forEach(function(ab){
+    chain=chain.then(function(){
+      if(!S.replaying) return;
+      if(ab===null){ log('   … 維持 5 秒 …'); return delay(5000); }
+      var f=frameRun(ch,ab[0],ab[1]);
+      return writeCh(c,f).then(function(){ log('   TX <- '+hexArr(f)); },
+                               function(e){ log('   TX err: '+e.message); })
+             .then(function(){ return delay(450); });
+    });
+  });
+  chain.then(function(){
+    if(!S.replaying) return;
+    var f=frameStop(ch);
+    return writeCh(c,f).then(function(){ log('   TX <- '+hexArr(f)+'   (stop)'); },function(){});
+  }).then(function(){
+    S.replaying=false;
+    log('=== 重播結束 ===');
+    setPow(0);
+  });
 });
 
 /* ==================== SENSORS ==================== */
@@ -645,7 +720,7 @@ function onNotifyValue(c,dv){
     if(r.lastHex!==h){
       r.lastHex=h;
       var quiet=$('optQuiet').checked&&QUIET_CHARS.indexOf(sh)>=0;
-      if(!quiet) log('notify '+shortLabel(c.uuid)+' = '+h+'   (+'+((Date.now()-S.connectedAt)/1000).toFixed(1)+'s)');
+      if(!quiet) log('notify '+shortLabel(c.uuid)+' = '+h);
     }
   }
   applySensor(c,dv);
@@ -673,134 +748,6 @@ $('btnPoll').addEventListener('click',function(){
   log('polling 0x0AA4');
 });
 
-/* ==================== MOTOR ==================== */
-function frameTpl(){ var v=$('frameSel').value; return v==='__custom__'?($('frameCustom').value||'01 {m} {v}'):v; }
-function buildFrame(tpl,m,v){
-  var out=[];
-  tpl.trim().split(/\s+/).forEach(function(tok){
-    if(tok==='{m}') out.push(m&0xff);
-    else if(tok==='{v}') out.push(v&0xff);
-    else { var n=parseInt(tok,16); if(!isNaN(n)) out.push(n&0xff); }
-  });
-  return out;
-}
-$('frameSel').addEventListener('change',function(){ $('frameCustom').classList.toggle('hide',this.value!=='__custom__'); });
-
-var motorBusy=false, motorDirty=false, lastLogged='';
-function scheduleMotors(){ motorDirty=true; pumpMotors(); }
-function pumpMotors(){
-  if(motorBusy||!motorDirty||!S.connected||!S.cmdChar) return;
-  motorDirty=false; motorBusy=true;
-  var m=S.main,v=S.vib,bytes=buildFrame(frameTpl(),m,v);
-  writeCh(S.cmdChar,bytes).then(function(){
-    var line=hexArr(bytes);
-    if(line!==lastLogged){
-      lastLogged=line;
-      log('motor -> '+line+'  (m='+m+'% v='+v+'%)'+(S.authed?'':'   [未授權！]'));
-    }
-  },function(e){ log('motor write failed: '+e.message); })
-  .then(function(){ motorBusy=false; setTimeout(pumpMotors,40); });
-}
-function setMain(n){ S.main=Math.max(0,Math.min(100,n|0)); $('sMain').value=S.main; $('lblMain').textContent=S.main; }
-function setVib(n){ S.vib=Math.max(0,Math.min(100,n|0)); $('sVib').value=S.vib; $('lblVib').textContent=S.vib; }
-$('sMain').addEventListener('input',function(){ setMain(+this.value); if($('optLink').checked) setVib(S.main); scheduleMotors(); });
-$('sVib').addEventListener('input', function(){ setVib(+this.value);  if($('optLink').checked) setMain(S.vib); scheduleMotors(); });
-Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'),function(b){
-  b.addEventListener('click',function(){
-    var n=+b.getAttribute('data-preset');
-    setMain(n); setVib(n); scheduleMotors();
-  });
-});
-$('btnBigTest').addEventListener('click',function(){
-  if(!S.authed) log('注意：目前未授權，這次測試很可能無效。先按電源鍵。');
-  setMain(70); setVib(70); scheduleMotors();
-  log('=== 70% 測試開始（3 秒）===');
-  setTimeout(function(){
-    setMain(0); setVib(0); scheduleMotors();
-    log('=== 70% 測試結束 ===');
-  },3000);
-});
-$('btnStop').addEventListener('click',function(){
-  stopSweep(); setMain(0); setVib(0); scheduleMotors();
-  if(S.cmdChar) writeCh(S.cmdChar,[0x01,0xFF]).then(function(){ log('STOP -> 01 FF'); },function(){});
-});
-
-/* ==================== SWEEP ==================== */
-function buildSweepPicks(){
-  var host=$('sweepPicks'); host.innerHTML='';
-  S.writeChars.forEach(function(c){
-    var sh=shortOf(c.uuid);
-    var risky=SWEEP_RISKY.indexOf(sh)>=0;
-    var lab=document.createElement('label'); lab.className='chk'+(risky?' warn':'');
-    var cb=document.createElement('input'); cb.type='checkbox';
-    cb.checked=(sh!==null&&SWEEP_DEFAULT.indexOf(sh)>=0);
-    cb.setAttribute('data-uuid',c.uuid);
-    lab.appendChild(cb);
-    lab.appendChild(document.createTextNode(shortLabel(c.uuid)+(risky?' 會斷線+失去授權':'')));
-    host.appendChild(lab);
-  });
-}
-$('btnSweep').addEventListener('click',startSweep);
-$('btnSweepStop').addEventListener('click',stopSweep);
-$('btnSweepMark').addEventListener('click',function(){
-  var s=S.sweep; if(!s) return;
-  var c=s.chars[s.ci], f=s.frames[s.fi];
-  stopSweep();
-  S.cmdChar=c; $('cmdSel').value=c.uuid;
-  var found=false,i;
-  for(i=0;i<$('frameSel').options.length;i++) if($('frameSel').options[i].value===f) found=true;
-  if(found){ $('frameSel').value=f; $('frameCustom').classList.add('hide'); }
-  else { $('frameSel').value='__custom__'; $('frameCustom').classList.remove('hide'); $('frameCustom').value=f; }
-  log('*** LOCKED: char='+shortLabel(c.uuid)+'  frame="'+f+'" ***');
-});
-function startSweep(){
-  if(!S.connected) return;
-  if(!S.authed && !confirm('目前未授權，掃頻幾乎一定沒有結果。仍要繼續嗎？')) return;
-  var picked=[];
-  Array.prototype.forEach.call($('sweepPicks').querySelectorAll('input:checked'),function(cb){
-    var c=S.byUuid[cb.getAttribute('data-uuid')];
-    if(c&&!isBlocked(c)) picked.push(c);
-  });
-  picked.sort(function(a,b){
-    return (SWEEP_RISKY.indexOf(shortOf(a.uuid))>=0?1:0)-(SWEEP_RISKY.indexOf(shortOf(b.uuid))>=0?1:0);
-  });
-  if(!picked.length){ log('沒有勾選任何特徵。'); return; }
-  S.sweep={ chars:picked, frames:SWEEP_FRAMES, ci:0, fi:0, stop:false };
-  $('sweepNow').style.display='block';
-  $('btnSweep').disabled=true; $('btnSweepStop').disabled=false;
-  log('sweep start: '+picked.map(function(c){ return shortLabel(c.uuid); }).join(', ')+
-      (S.authed?'  [已授權]':'  [未授權]'));
-  sweepStep();
-}
-function stopSweep(){
-  if(S.sweep) S.sweep.stop=true;
-  S.sweep=null;
-  $('sweepNow').style.display='none';
-  $('btnSweep').disabled=!S.connected; $('btnSweepStop').disabled=true;
-}
-function sweepStep(){
-  var s=S.sweep;
-  if(!s||s.stop||!S.connected) return;
-  if(s.ci>=s.chars.length){ log('sweep 全部試完。'); stopSweep(); return; }
-  var c=s.chars[s.ci], f=s.frames[s.fi];
-  var lvl=Math.max(1,Math.min(100,+$('sweepLevel').value||75));
-  var dwell=Math.max(400,+$('sweepDwell').value||1600);
-  var on=buildFrame(f,lvl,lvl), off=buildFrame(f,0,0);
-  $('sweepLabel').textContent=shortLabel(c.uuid)+'  <-  '+hexArr(on);
-  $('sweepProg').textContent='char '+(s.ci+1)+'/'+s.chars.length+' · frame '+(s.fi+1)+'/'+s.frames.length+'  「'+f+'」';
-  writeCh(c,on).then(function(){ log('sweep '+shortLabel(c.uuid)+' <- '+hexArr(on)); },
-                     function(e){ log('sweep err: '+e.message); })
-    .then(function(){ return delay(dwell); })
-    .then(function(){ if(S.sweep&&!S.sweep.stop&&S.connected) return writeCh(c,off).catch(function(){}); })
-    .then(function(){ return delay(300); })
-    .then(function(){
-      if(!S.sweep||S.sweep.stop||!S.connected) return;
-      s.fi++;
-      if(s.fi>=s.frames.length){ s.fi=0; s.ci++; }
-      sweepStep();
-    });
-}
-
 /* ==================== DUMP / RAW ==================== */
 function dumpAll(){
   $('dumpBody').innerHTML='';
@@ -823,21 +770,16 @@ function addDumpRow(c,text){
   $('dumpBody').appendChild(tr);
 }
 $('btnDump').addEventListener('click',function(){ dumpAll(); });
-
 function rawChar(){
   var u=($('rawUuid').value||'').trim().toLowerCase().replace(/^0x/,'');
   if(/^[0-9a-f]{4}$/.test(u)) u=u16uuid(parseInt(u,16));
   return S.byUuid[u]||null;
 }
-function parseHex(s){
-  return (s||'').trim().split(/[\s,]+/).map(function(t){ return parseInt(t,16)&0xff; })
-        .filter(function(n){ return !isNaN(n); });
-}
 $('btnRawWrite').addEventListener('click',function(){
   var c=rawChar(); if(!c){ $('rawOut').textContent='找不到該 UUID'; return; }
   if(isBlocked(c)){ $('rawOut').textContent='受保護，禁寫'; return; }
-  if(shortOf(c.uuid)===C_A50 && !confirm('寫 0x0A50 會立刻斷線並失去授權。確定嗎？')) return;
-  var b=parseHex($('rawHex').value);
+  if(shortOf(c.uuid)===C_A50&&!confirm('寫 0x0A50 會立刻斷線並失去授權。確定嗎？')) return;
+  var b=parseHexList($('rawHex').value);
   writeCh(c,b).then(function(){
     $('rawOut').textContent='wrote OK: '+hexArr(b);
     log('raw '+shortLabel(c.uuid)+' <- '+hexArr(b));
@@ -852,9 +794,10 @@ $('btnRawRead').addEventListener('click',function(){
 });
 
 setAuthState(0,'未連線','');
-log('v5 ready.');
-log('握手已確認：金鑰原樣寫回 0x0A11 → 裝置回 01 00 00 00 00 00 00 00 = 授權成功。');
-log('上一輪授權成功後只測到 16%，SDK 說低於 30% 轉不動 —— 這次授權後直接按大按鈕測 70%。');
+updatePreview();
+log('v6 ready — 協定取自 btsnoop_hci.log。');
+log('AUTH : 0x0A11 <- 8-byte 固定金鑰，裝置回 01 00 00 00 00 00 00 00');
+log('MOTOR: 0xFFF2 <- 0A 12 <ch> 02 <p1BE> <p2BE> <a> <b>   停止 = 0A 12 <ch> 00');
 </script>
 </body>
 </html>
